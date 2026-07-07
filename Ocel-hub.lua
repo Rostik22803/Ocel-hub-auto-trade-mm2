@@ -1,5 +1,5 @@
 -- =============================================
--- MM2 Auto Trader v4.1 (FINAL STABLE FIXED)
+-- MM2 Auto Trader v4.2 (ULTRA SCANNER DETECT)
 -- =============================================
 
 local Players           = game:GetService("Players")
@@ -9,7 +9,7 @@ local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
 
 -- [АВТО-ОЧИСТКА ВСЕХ СТАРЫХ ВЕРСИЙ]
 for _, gui in ipairs(PlayerGui:GetChildren()) do
-    if gui.Name == "MM2TraderUI_v4" or gui.Name == "MM2TraderUI" or gui.Name == "MM2TraderDebug" then
+    if gui.Name:find("MM2TraderUI") or gui.Name == "MM2TraderDebug" then
         gui:Destroy()
     end
 end
@@ -24,7 +24,6 @@ local traderEnabled       = false
 -- ТАБЛИЦА ЦЕН MM2
 -- =============================================
 local ItemValues = {
-    -- ===== ANCIENTS =====
     ["Nik's Scythe"]            = 125000000, ["Blue Elderwood Blade"]    = 45000,
     ["Red Icecrusher"]          = 45000,     ["Red Icepiercer"]          = 45000,
     ["Blue Swirly Axe"]         = 40000,     ["Blue Synthwave"]          = 40000,
@@ -35,21 +34,8 @@ local ItemValues = {
     ["Hallowscythe"]            = 34,        ["Icebreaker"]              = 69,
     ["Icewing"]                 = 15,        ["Logchopper"]              = 18,
     ["Swirly Axe"]              = 42,
-
-    -- ===== CHROMA GODLYS =====
     ["Chroma Traveler's Gun"]   = 220000,    ["Chroma Evergun"]          = 75000,
     ["Chroma Evergreen"]        = 59300,     ["Chroma Bauble"]           = 35000,
-    ["Chroma Vampire's Gun"]    = 29000,     ["Chroma Constellation"]    = 27300,
-    ["Chroma Alienbeam"]        = 23500,     ["Chroma Raygun"]           = 14400,
-    ["Chroma Sunrise"]          = 11500,     ["Chroma Snowcannon"]       = 8600,
-    ["Chroma Blizzard"]         = 7900,      ["Chroma Sunset"]           = 6500,
-    ["Chroma Heart Wand"]       = 4700,      ["Chroma Snow Dagger"]      = 4400,
-    ["Chroma Snowstorm"]        = 4300,      ["Chroma Watergun"]         = 3400,
-    ["Chroma Treat"]            = 2600,      ["Chroma Sweet"]            = 2300,
-    ["Chroma Darkbringer"]      = 70,        ["Chroma Lightbringer"]     = 65,
-    ["Chroma Luger"]            = 53,        ["Chroma Laser"]            = 44,
-
-    -- ===== GODLYS =====
     ["Traveler's Gun"]          = 4900,      ["Evergun"]                 = 3500,
     ["Evergreen"]               = 2500,      ["Darkshot"]                = 1600,
     ["Darksword"]               = 1500,      ["Corrupt"]                 = 475,
@@ -64,18 +50,16 @@ local ItemValues = {
     ["Yellow Seer"]             = 2,         ["Orange Seer"]             = 2,
     ["Red Seer"]                = 3,         ["Cyan Seer"]               = 3,
     ["Blue Seer"]               = 3,         ["Purple Seer"]             = 3,
-
-    -- ===== LEGENDARIES & RARE =====
     ["Predator"]                = 4,         ["Shaded"]                  = 2,
     ["Vampire (Gun)"]           = 48,        ["JD"]                      = 35,
     ["Cotton Candy"]            = 40,
 }
 
 -- =============================================
--- СОЗДАНИЕ ИНТЕРФЕЙСА (v4.1)
+-- СОЗДАНИЕ ИНТЕРФЕЙСА (v4.2)
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2TraderUI_v4"
+screenGui.Name = "MM2TraderUI_v42"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = PlayerGui
@@ -100,7 +84,7 @@ titleBar.Parent = mainFrame
 local tc = Instance.new("UICorner") tc.CornerRadius = UDim.new(0, 10) tc.Parent = titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v4.1"
+titleLabel.Text = "MM2 Auto Trader v4.2"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -255,60 +239,93 @@ resultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
 resultLabel.Parent = debugFrame
 
 -- =============================================
--- ТОЧНЫЙ ПЕРЕХВАТ ТРЕЙД-ОКНА MM2
+-- ГЛОБАЛЬНЫЙ СКАНИРОВЩИК ЭКРАНА (СЛЕПОЙ ПОИСК)
 -- =============================================
-local function getMM2TradeGui()
-    local paperGui = PlayerGui:FindFirstChild("PaperGui")
-    if paperGui then
-        local main = paperGui:FindFirstChild("Main")
-        if main then
-            local trade = main:FindFirstChild("Trade")
-            if trade and trade.Visible then
-                return trade
+local function findTradeWindowByScanning()
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v42" then
+            -- Ищем любой текст "YOUR OFFER"
+            for _, desc in ipairs(gui:GetDescendants()) do
+                if desc:IsA("TextLabel") and (desc.Text:upper() == "YOUR OFFER" or desc.Text:upper() == "THEIR OFFER") then
+                    if desc.Parent and desc.Parent.Visible then
+                        return desc.Parent -- Возвращает главный контейнер трейда
+                    end
+                end
             end
         end
     end
     return nil
 end
 
-local function parseSlots(slotsFrame)
-    local items = {}
-    if not slotsFrame then return items end
-    
-    for _, slot in ipairs(slotsFrame:GetChildren()) do
-        if slot:IsA("GuiObject") and slot.Name:find("Slot") then
-            local container = slot:FindFirstChild("Container")
-            if container then
-                local itemLabel = container:FindFirstChild("ItemName") or container:FindFirstChild("TextLabel")
-                if itemLabel and itemLabel:IsA("TextLabel") and itemLabel.Text ~= "" and itemLabel.Text ~= "Label" then
-                    table.insert(items, itemLabel.Text)
-                end
-            end
+local function cleanItemName(text)
+    if not text or text == "" or tonumber(text) or text == "Label" then return nil end
+    local clean = text:match("^%s*(.-)%s*$")
+    if ItemValues[clean] then return clean end
+    for name, _ in pairs(ItemValues) do
+        if name:lower() == clean:lower() or clean:lower():find(name:lower(), 1, true) then
+            return name
         end
     end
-    return items
+    return nil
 end
 
 -- =============================================
--- ОСНОВНАЯ ЛОГИКА СКАНИРОВАНИЯ И КЛИКА
+-- ОСНОВНАЯ ЛОГИКА
 -- =============================================
 local function processTradeLogic()
-    local tradeMain = getMM2TradeGui()
+    local tradeMain = findTradeWindowByScanning()
     
     if not tradeMain then
         resultLabel.Text = "⏳ Окно обмена MM2 закрыто или не найдено"
         resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        myItemsLabel.Text = "Твои вещи: пусто"
-        theirItemsLabel.Text = "Вещи оппонента: пусто"
-        myTotalLabel.Text = "Ты даешь: 0"
-        theirTotalLabel.Text = "Тебе дают: 0"
         return
     end
 
-    -- Напрямую забираем айтемы из контейнеров слотов MM2
-    local myItems = parseSlots(tradeMain:FindFirstChild("YourSlots", true))
-    local theirItems = parseSlots(tradeMain:FindFirstChild("TheirSlots", true))
+    -- Сканируем все надписи внутри найденного окна
+    local myItems = {}
+    local theirItems = {}
+    local acceptBtn, declineBtn
+    local opponentAccepted = false
 
+    -- Разделяем по родительским контейнерам (Твои Слоты / Их Слоты)
+    for _, obj in ipairs(tradeMain:GetDescendants()) do
+        if obj:IsA("TextLabel") and obj.Visible then
+            local matched = cleanItemName(obj.Text)
+            if matched then
+                -- Определяем чья сторона по названию контейнера
+                local pName = obj.Parent and obj.Parent.Name or ""
+                local gpName = (obj.Parent and obj.Parent.Parent) and obj.Parent.Parent.Name or ""
+                
+                if pName:lower():find("your") or gpName:lower():find("your") or pName:lower():find("my") then
+                    table.insert(myItems, matched)
+                elseif pName:lower():find("their") or gpName:lower():find("their") or pName:lower():find("other") then
+                    table.insert(theirItems, matched)
+                else
+                    -- Запасной вариант по высоте экрана
+                    if obj.AbsolutePosition.Y < tradeMain.AbsolutePosition.Y + (tradeMain.AbsoluteSize.Y * 0.5) then
+                        table.insert(myItems, matched)
+                    else
+                        table.insert(theirItems, matched)
+                    end
+                end
+            end
+
+            -- Проверка согласия оппонента
+            if obj.Text:upper():find("ACCEPTED") or obj.Text:upper():find("СОГЛАСЕН") or obj.Text:upper():find("HAS ACCEPTED") then
+                opponentAccepted = true
+            end
+        end
+
+        -- Поиск кнопок клика
+        if obj:IsA("TextButton") and obj.Visible then
+            local name = obj.Name:lower()
+            local text = obj.Text:lower()
+            if name:find("accept") or text:find("accept") then acceptBtn = obj end
+            if name:find("decline") or text:find("decline") then declineBtn = obj end
+        end
+    end
+
+    -- Вывод результатов на панель
     local myTotal, theirTotal = 0, 0
     local myLines, theirLines = {}, {}
 
@@ -328,20 +345,6 @@ local function processTradeLogic()
     myTotalLabel.Text = "Ты даешь: " .. myTotal
     theirTotalLabel.Text = "Тебе дают: " .. theirTotal
 
-    -- Ищем кнопки управления оригинального UI
-    local acceptBtn = tradeMain:FindFirstChild("Accept", true)
-    local declineBtn = tradeMain:FindFirstChild("Decline", true)
-
-    -- Читаем статус согласия оппонента
-    local opponentAccepted = false
-    local statusFrame = tradeMain:FindFirstChild("Status", true) or tradeMain
-    for _, txt in ipairs(statusFrame:GetDescendants()) do
-        if txt:IsA("TextLabel") and (txt.Text:upper():find("ACCEPTED") or txt.Text:upper():find("СОГЛАСЕН")) then
-            opponentAccepted = true
-            break
-        end
-    end
-
     if myTotal == 0 and theirTotal == 0 then
         resultLabel.Text = "Окна обмена пусты. Выставите предметы."
         resultLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
@@ -358,15 +361,10 @@ local function processTradeLogic()
         profitValid = theirTotal > 0
     end
 
-    if not opponentAccepted then
-        resultLabel.Text = "⏳ Жду, пока другой игрок нажмет ACCEPT..."
-        resultLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
-        return 
-    end
-
+    -- Если включен автотрейд, управляем кнопками обмена
     if traderEnabled then
         if profitValid then
-            resultLabel.Text = "✅ Выгодно ("..percent.."%). Подтверждаю!"
+            resultLabel.Text = "✅ Выгодно ("..percent.."%). Жму ACCEPT!"
             resultLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
             if acceptBtn then
                 pcall(function()
@@ -379,7 +377,7 @@ local function processTradeLogic()
                 end)
             end
         else
-            resultLabel.Text = "❌ Невыгодно ("..percent.."%). Отклоняю!"
+            resultLabel.Text = "❌ Убыток ("..percent.."%). Отклоняю!"
             resultLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
             if declineBtn then
                 pcall(function() declineBtn.MouseButton1Click:Fire() end)
@@ -397,11 +395,11 @@ local function processTradeLogic()
 end
 
 -- =============================================
--- СТАРТ ПОТОКА И ОБРАБОТКА КНОПОК ПОЛЬЗОВАТЕЛЯ
+-- ЦИКЛЫ И КНОПКИ
 -- =============================================
 task.spawn(function()
     while true do
-        task.wait(0.2)
+        task.wait(0.5)
         pcall(processTradeLogic)
     end
 end)
