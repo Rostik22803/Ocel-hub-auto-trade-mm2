@@ -1,5 +1,5 @@
 -- =============================================
--- MM2 Auto Trader v4.9 (STRICT HIERARCHY FIX)
+-- MM2 Auto Trader v5.1 (NO-VISIBLE TEXT SCANNER)
 -- =============================================
 
 local Players           = game:GetService("Players")
@@ -15,7 +15,7 @@ for _, gui in ipairs(PlayerGui:GetChildren()) do
 end
 
 -- =============================================
--- НАСТРОЙКИ И БАЗА ЦЕН
+-- НАСТРОЙКИ И ЦЕНЫ
 -- =============================================
 local MIN_PROFIT_PERCENT  = 5       
 local traderEnabled       = false   
@@ -53,10 +53,10 @@ local ItemValues = {
 }
 
 -- =============================================
--- СОЗДАНИЕ ИНТЕРФЕЙСА v4.9
+-- ИНТЕРФЕЙС GUI
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2TraderUI_v49"
+screenGui.Name = "MM2TraderUI_v51"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = PlayerGui
@@ -76,19 +76,16 @@ local stroke = Instance.new("UIStroke") stroke.Color = Color3.fromRGB(180, 0, 25
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 36)
 titleBar.BackgroundColor3 = Color3.fromRGB(130, 0, 210)
-titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 local tc = Instance.new("UICorner") tc.CornerRadius = UDim.new(0, 10) tc.Parent = titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v4.9"
+titleLabel.Text = "MM2 Auto Trader v5.1"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextSize = 14
+titleLabel.TextColor3 = Color3.new(1,1,1)
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
 
 local statusLabel = Instance.new("TextLabel")
@@ -97,9 +94,6 @@ statusLabel.Size = UDim2.new(1, -20, 0, 24)
 statusLabel.Position = UDim2.new(0, 10, 0, 44)
 statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-statusLabel.TextSize = 14
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = mainFrame
 
 local toggleBtn = Instance.new("TextButton")
@@ -107,10 +101,8 @@ toggleBtn.Text = "▶  Включить автотрейд"
 toggleBtn.Size = UDim2.new(1, -20, 0, 36)
 toggleBtn.Position = UDim2.new(0, 10, 0, 72)
 toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 60)
-toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.TextSize = 13
+toggleBtn.TextColor3 = Color3.new(1,1,1)
 toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.BorderSizePixel = 0
 toggleBtn.Parent = mainFrame
 local btnCorner = Instance.new("UICorner") btnCorner.CornerRadius = UDim.new(0, 6) btnCorner.Parent = toggleBtn
 
@@ -120,9 +112,6 @@ profitLabel.Size = UDim2.new(1, -20, 0, 20)
 profitLabel.Position = UDim2.new(0, 10, 0, 115)
 profitLabel.BackgroundTransparency = 1
 profitLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-profitLabel.TextSize = 13
-profitLabel.Font = Enum.Font.Gotham
-profitLabel.TextXAlignment = Enum.TextXAlignment.Left
 profitLabel.Parent = mainFrame
 
 local minusBtn = Instance.new("TextButton")
@@ -131,7 +120,6 @@ minusBtn.Size = UDim2.new(0, 45, 0, 28)
 minusBtn.Position = UDim2.new(0, 10, 0, 138)
 minusBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 minusBtn.TextColor3 = Color3.new(1,1,1)
-minusBtn.TextSize = 14
 minusBtn.Parent = mainFrame
 local mc = Instance.new("UICorner") mc.CornerRadius = UDim.new(0,4) mc.Parent = minusBtn
 
@@ -141,7 +129,6 @@ plusBtn.Size = UDim2.new(0, 45, 0, 28)
 plusBtn.Position = UDim2.new(0, 60, 0, 138)
 plusBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
 plusBtn.TextColor3 = Color3.new(1,1,1)
-plusBtn.TextSize = 14
 plusBtn.Parent = mainFrame
 local pc = Instance.new("UICorner") pc.CornerRadius = UDim.new(0,4) pc.Parent = plusBtn
 
@@ -151,8 +138,6 @@ debugToggleBtn.Size = UDim2.new(1, -20, 0, 32)
 debugToggleBtn.Position = UDim2.new(0, 10, 0, 175)
 debugToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
 debugToggleBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
-debugToggleBtn.Font = Enum.Font.GothamBold
-debugToggleBtn.BorderSizePixel = 0
 debugToggleBtn.Parent = mainFrame
 local dbc = Instance.new("UICorner") dbc.CornerRadius = UDim.new(0,6) dbc.Parent = debugToggleBtn
 
@@ -161,9 +146,6 @@ local debugFrame = Instance.new("Frame")
 debugFrame.Size = UDim2.new(0, 400, 0, 250)
 debugFrame.Position = UDim2.new(0, 310, 0.35, 0)
 debugFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
-debugFrame.BorderSizePixel = 0
-debugFrame.Active = true
-debugFrame.Draggable = true
 debugFrame.Visible = false
 debugFrame.Parent = screenGui
 local dbCorner = Instance.new("UICorner") dbCorner.CornerRadius = UDim.new(0, 10) dbCorner.Parent = debugFrame
@@ -229,12 +211,11 @@ resultLabel.Size = UDim2.new(1, -12, 0, 30)
 resultLabel.Position = UDim2.new(0, 6, 1, -35)
 resultLabel.BackgroundTransparency = 1
 resultLabel.Font = Enum.Font.GothamBold
-resultLabel.TextSize = 12
 resultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
 resultLabel.Parent = debugFrame
 
 -- =============================================
--- ЛОГИКА ОЧИСТКИ НАЗВАНИЙ ПРЕДМЕТОВ
+-- ЧИСТКА СТРОК
 -- =============================================
 local function cleanItemName(text)
     if not text or text == "" or tonumber(text) or text == "Label" then return nil end
@@ -250,39 +231,27 @@ local function cleanItemName(text)
 end
 
 -- =============================================
--- ТОЧЕЧНЫЙ СКАНИРОВЩИК ЯЧЕЕК ТРЕЙДА
+-- ОСНОВНОЙ ЦИКЛ СКАНИРОВАНИЯ
 -- =============================================
 local function processTradeLogic()
-    local yourSlotsContainer = nil
-    local theirSlotsContainer = nil
-    local acceptBtn, declineBtn = nil, nil
-
-    -- Ищем строго целевые контейнеры слотов во всех ScreenGui
+    local tradeFrame = nil
+    
+    -- Ищем фрейм трейда исключительно по наличию текста "YOUR OFFER"
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v49" then
-            -- Ищем YourSlots и TheirSlots напрямую по имени объектов
+        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v51" then
             for _, desc in ipairs(gui:GetDescendants()) do
-                local name = desc.Name:lower()
-                if name == "yourslots" or name == "myslots" then
-                    yourSlotsContainer = desc
-                elseif name == "theirslots" or name == "otherslots" then
-                    theirSlotsContainer = desc
-                end
-                
-                -- Заодно цепляем кнопки согласия/отклонения
-                if desc:IsA("TextButton") and desc.Visible then
-                    local bName = desc.Name:lower()
-                    local bText = desc.Text:lower()
-                    if bName:find("accept") or bText:find("accept") then acceptBtn = desc end
-                    if bName:find("decline") or bText:find("decline") then declineBtn = desc end
+                if desc:IsA("TextLabel") and desc.Text:upper() == "YOUR OFFER" then
+                    tradeFrame = desc.Parent
+                    break
                 end
             end
         end
+        if tradeFrame then breakend
     end
 
-    -- Если контейнеры слотов не найдены, значит трейд закрыт
-    if not yourSlotsContainer or not theirSlotsContainer then
-        resultLabel.Text = "⏳ Окно обмена MM2 закрыто или не найдено"
+    -- Если заголовка нет вообще в структуре — обнуляем UI
+    if not tradeFrame then
+        resultLabel.Text = "⏳ Окно обмена MM2 не обнаружено"
         resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         myItemsLabel.Text = "Твои вещи: пусто"
         theirItemsLabel.Text = "Вещи оппонента: пусто"
@@ -293,32 +262,36 @@ local function processTradeLogic()
 
     local myItems = {}
     local theirItems = {}
+    local acceptBtn, declineBtn = nil, nil
 
-    -- Сканируем предметы СТРОГО внутри твоих слотов
-    if yourSlotsContainer.Visible then
-        for _, obj in ipairs(yourSlotsContainer:GetDescendants()) do
-            if obj:IsA("TextLabel") and obj.Visible and obj.Text ~= "" then
-                local matched = cleanItemName(obj.Text)
-                if matched then
+    -- Рассчитываем горизонтальный центр окна
+    local tradeCenterX = tradeFrame.AbsolutePosition.X + (tradeFrame.AbsoluteSize.X / 2)
+
+    -- Сканируем всё внутри фрейма БЕЗ проверки AbsoluteVisible для родителя
+    for _, obj in ipairs(tradeFrame:GetDescendants()) do
+        -- Парсим названия предметов (отключаем жесткую проверку AbsoluteVisible)
+        if obj:IsA("TextLabel") and obj.Text ~= "" then
+            local matched = cleanItemName(obj.Text)
+            if matched and not obj.Text:upper():find("OFFER") then
+                -- Сортируем Лево / Право относительно центра окна обмена
+                if obj.AbsolutePosition.X < tradeCenterX then
                     table.insert(myItems, matched)
-                end
-            end
-        end
-    end
-
-    -- Сканируем предметы СТРОГО внутри чужих слотов
-    if theirSlotsContainer.Visible then
-        for _, obj in ipairs(theirSlotsContainer:GetDescendants()) do
-            if obj:IsA("TextLabel") and obj.Visible and obj.Text ~= "" then
-                local matched = cleanItemName(obj.Text)
-                if matched then
+                else
                     table.insert(theirItems, matched)
                 end
             end
         end
+
+        -- Кнопки управления трейдом
+        if obj:IsA("TextButton") then
+            local name = obj.Name:lower()
+            local text = obj.Text:lower()
+            if name:find("accept") or text:find("accept") then acceptBtn = obj end
+            if name:find("decline") or text:find("decline") then declineBtn = obj end
+        end
     end
 
-    -- Подсчет результатов
+    -- Подсчитываем результаты сканирования
     local myTotal, theirTotal = 0, 0
     local myLines, theirLines = {}, {}
 
@@ -339,12 +312,12 @@ local function processTradeLogic()
     theirTotalLabel.Text = "Тебе дают: " .. theirTotal
 
     if myTotal == 0 and theirTotal == 0 then
-        resultLabel.Text = "Окна обмена пусты. Выставите предметы."
+        resultLabel.Text = "Окна обмена пусты. Выставите скины."
         resultLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
         return
     end
 
-    -- Расчет прибыли
+    -- Калькулятор выгоды трейда
     local profitValid = false
     local percent = 0
     if myTotal > 0 then
@@ -355,7 +328,7 @@ local function processTradeLogic()
         profitValid = theirTotal > 0
     end
 
-    -- Выполнение действий кликера
+    -- Логика кликера
     if traderEnabled then
         if profitValid then
             resultLabel.Text = "✅ Выгодно ("..percent.."%). Жму ACCEPT!"
@@ -373,9 +346,7 @@ local function processTradeLogic()
         else
             resultLabel.Text = "❌ Убыток ("..percent.."%). Отклоняю!"
             resultLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-            if declineBtn then
-                pcall(function() declineBtn.MouseButton1Click:Fire() end)
-            end
+            if declineBtn then pcall(function() declineBtn.MouseButton1Click:Fire() end) end
         end
     else
         if profitValid then
@@ -388,9 +359,7 @@ local function processTradeLogic()
     end
 end
 
--- =============================================
--- ЦИКЛЫ И СЛУШАТЕЛИ ИНТЕРФЕЙСА
--- =============================================
+-- Потоки
 task.spawn(function()
     while true do
         task.wait(0.4)
