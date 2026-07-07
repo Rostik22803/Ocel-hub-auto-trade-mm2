@@ -872,6 +872,29 @@ resultLabel.TextXAlignment = Enum.TextXAlignment.Center
 resultLabel.ZIndex = 999
 resultLabel.Parent = debugFrame
 
+-- Кнопка ручного сканирования (если автодетект не сработал)
+local scanBtn = Instance.new("TextButton")
+scanBtn.Text = "🔄 Сканировать трейд сейчас"
+scanBtn.Size = UDim2.new(1, -12, 0, 24)
+scanBtn.Position = UDim2.new(0, 6, 0, 34)
+scanBtn.BackgroundColor3 = Color3.fromRGB(50, 80, 160)
+scanBtn.TextColor3 = Color3.fromRGB(200, 220, 255)
+scanBtn.TextSize = 11
+scanBtn.Font = Enum.Font.GothamBold
+scanBtn.BorderSizePixel = 0
+scanBtn.ZIndex = 1000
+scanBtn.Parent = debugFrame
+local scanBtnCorner = Instance.new("UICorner")
+scanBtnCorner.CornerRadius = UDim.new(0, 6)
+scanBtnCorner.Parent = scanBtn
+
+-- Сдвигаем колонки вниз чтобы кнопка не перекрывала
+myCol.Position    = UDim2.new(0, 6,   0, 64)
+theirCol.Position = UDim2.new(0.5, 2, 0, 64)
+myCol.Size        = UDim2.new(0.5, -8, 1, -90)
+theirCol.Size     = UDim2.new(0.5, -8, 1, -90)
+debugFrame.Size   = UDim2.new(0, 420, 0, 300)
+
 -- Функция обновления панели отладки
 local function updateDebugPanel(myItems, theirItems)
     debugFrame.Visible = true
@@ -934,6 +957,37 @@ end
 local function hideDebugPanel()
     debugFrame.Visible = false
 end
+
+-- Кнопка ручного сканирования — ищет трейд-GUI прямо сейчас
+scanBtn.MouseButton1Click:Connect(function()
+    scanBtn.Text = "⏳ Сканирую..."
+    local found = false
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        print("[Scan] GUI: " .. gui.Name)
+        -- Сбрасываем флаг чтобы дать повторно обработать
+        knownGuis[gui] = nil
+        if isTradeGui(gui) then
+            found = true
+            knownGuis[gui] = true
+            scanBtn.Text = "✅ Найден: " .. gui.Name
+            task.spawn(handleTradeGui, gui)
+            return
+        end
+    end
+    if not found then
+        -- Показываем все GUI в панели чтобы игрок видел что есть
+        local names = {}
+        for _, gui in ipairs(PlayerGui:GetChildren()) do
+            table.insert(names, gui.Name)
+        end
+        scanBtn.Text = "❌ Не найден. GUI: " .. table.concat(names, ", ")
+        -- Всё равно обновляем панель с пустыми данными
+        myItemsLabel.Text    = "Трейд не найден"
+        theirItemsLabel.Text = "Трейд не найден"
+        resultLabel.Text     = "Открой трейд и нажми снова"
+        resultLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+    end
+end)
 
 -- Кнопки управления прибылью
 minusBtn.MouseButton1Click:Connect(function()
@@ -1032,19 +1086,34 @@ end
 -- =============================================
 -- КЛИК ПО КНОПКЕ (несколько методов)
 -- =============================================
+-- КЛИК ПО КНОПКЕ — все методы сразу
+-- =============================================
 local function clickButton(btn)
-    if not btn then return end
-    -- Метод 1: fire click event
+    if not btn then
+        print("[Trader] clickButton: кнопка nil, пропуск")
+        return
+    end
+    print("[Trader] Кликаем: " .. btn.Name .. ' "' .. btn.Text .. '"')
+
+    -- Метод 1: прямой fire события клика
     btn.MouseButton1Click:Fire()
-    task.wait(0.1)
-    -- Метод 2: через VirtualInputManager если первый не сработал
-    local pos = btn.AbsolutePosition + btn.AbsoluteSize / 2
-    local VIM = game:GetService("VirtualInputManager")
-    if VIM then
+    task.wait(0.08)
+
+    -- Метод 2: через VirtualInputManager (работает в большинстве эксплойтов)
+    local ok, VIM = pcall(function()
+        return game:GetService("VirtualInputManager")
+    end)
+    if ok and VIM then
+        local pos = btn.AbsolutePosition + btn.AbsoluteSize / 2
         VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 1)
         task.wait(0.05)
         VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
     end
+
+    -- Метод 3: MouseButton1Down + Up
+    btn.MouseButton1Down:Fire()
+    task.wait(0.05)
+    btn.MouseButton1Up:Fire()
 end
 
 -- =============================================
@@ -1202,17 +1271,63 @@ end
 -- =============================================
 print("[Trader] Скрипт загружен. Открой меню и включи автотрейд.")
 
--- Проверяем существующие GUI
-for _, gui in ipairs(PlayerGui:GetChildren()) do
-    if gui.Name:lower():find("trade") then
+-- Признаки того что GUI является трейд-окном MM2
+local function isTradeGui(gui)
+    local name = gui.Name:lower()
+    -- Прямое совпадение по имени
+    if name:find("trade") or name:find("trading") or name:find("swap") then
+        return true
+    end
+    -- Проверяем есть ли внутри кнопки Accept/Decline — верный признак трейда
+    for _, desc in ipairs(gui:GetDescendants()) do
+        if desc:IsA("TextButton") then
+            local t = desc.Text:lower()
+            local n = desc.Name:lower()
+            if t:find("accept") or t:find("decline") or
+               n:find("accept") or n:find("decline") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Уже обработанные GUI
+local knownGuis = {}
+
+local function tryHandleGui(gui)
+    if not gui or not gui.Parent then return end
+    if knownGuis[gui] then return end
+    if isTradeGui(gui) then
+        knownGuis[gui] = true
+        print("[Trader] ✔ Трейд GUI найден: " .. gui.Name)
         task.spawn(handleTradeGui, gui)
     end
 end
 
--- Слушаем новые
+-- Сканируем всё что уже есть
+for _, gui in ipairs(PlayerGui:GetChildren()) do
+    print("[Trader] Существующий GUI: " .. gui.Name)
+    tryHandleGui(gui)
+end
+
+-- Ловим ВСЕ новые GUI без фильтра по имени
 PlayerGui.ChildAdded:Connect(function(child)
-    print("[DEBUG] Новый GUI: " .. child.Name)
-    if child.Name:lower():find("trade") then
-        task.spawn(handleTradeGui, child)
+    print("[Trader] Новый GUI появился: " .. child.Name)
+    -- Ждём немного чтобы GUI успел построиться
+    task.wait(0.5)
+    tryHandleGui(child)
+end)
+
+-- Страховочный таймер — каждые 2 секунды сканируем PlayerGui
+-- На случай если ChildAdded не сработал
+task.spawn(function()
+    while true do
+        task.wait(2)
+        for _, gui in ipairs(PlayerGui:GetChildren()) do
+            if not knownGuis[gui] then
+                tryHandleGui(gui)
+            end
+        end
     end
 end)
