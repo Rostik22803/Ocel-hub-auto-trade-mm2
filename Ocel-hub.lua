@@ -702,54 +702,74 @@ tipLabel.TextXAlignment = Enum.TextXAlignment.Left
 tipLabel.Parent = mainFrame
 
 -- =============================================
--- ПАНЕЛЬ ОТЛАДКИ ТРЕЙДА
+-- ПАНЕЛЬ ОТЛАДКИ — отдельный ScreenGui поверх ВСЕГО
+-- DisplayOrder 999 гарантирует рендер поверх MM2 GUI
 -- =============================================
+local debugScreenGui = Instance.new("ScreenGui")
+debugScreenGui.Name = "MM2TraderDebug"
+debugScreenGui.ResetOnSpawn = false
+debugScreenGui.DisplayOrder = 999
+debugScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+debugScreenGui.IgnoreGuiInset = true
+debugScreenGui.Parent = PlayerGui
+
 local debugFrame = Instance.new("Frame")
 debugFrame.Name = "DebugFrame"
-debugFrame.Size = UDim2.new(0, 420, 0, 260)
-debugFrame.Position = UDim2.new(0, 20, 0, 270)
-debugFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+debugFrame.Size = UDim2.new(0, 420, 0, 280)
+-- Правый верхний угол — не мешает трейд-окну MM2 (обычно по центру)
+debugFrame.Position = UDim2.new(1, -435, 0, 10)
+debugFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
 debugFrame.BorderSizePixel = 0
 debugFrame.Active = true
 debugFrame.Draggable = true
 debugFrame.Visible = false
-debugFrame.Parent = screenGui
+debugFrame.ZIndex = 999
+debugFrame.Parent = debugScreenGui
 
 local dbCorner = Instance.new("UICorner")
 dbCorner.CornerRadius = UDim.new(0, 10)
 dbCorner.Parent = debugFrame
 
 local dbStroke = Instance.new("UIStroke")
-dbStroke.Color = Color3.fromRGB(80, 80, 120)
-dbStroke.Thickness = 1
+dbStroke.Color = Color3.fromRGB(100, 100, 180)
+dbStroke.Thickness = 2
 dbStroke.Parent = debugFrame
 
--- Заголовок панели
+-- Заголовок панели (тянуть за него)
 local dbTitle = Instance.new("Frame")
-dbTitle.Size = UDim2.new(1, 0, 0, 30)
-dbTitle.BackgroundColor3 = Color3.fromRGB(40, 40, 70)
+dbTitle.Size = UDim2.new(1, 0, 0, 32)
+dbTitle.BackgroundColor3 = Color3.fromRGB(35, 35, 70)
 dbTitle.BorderSizePixel = 0
+dbTitle.ZIndex = 999
 dbTitle.Parent = debugFrame
 local dbtc = Instance.new("UICorner") dbtc.CornerRadius = UDim.new(0,10) dbtc.Parent = dbTitle
-local dbtfix = Instance.new("Frame") dbtfix.Size = UDim2.new(1,0,0.5,0) dbtfix.Position = UDim2.new(0,0,0.5,0) dbtfix.BackgroundColor3 = Color3.fromRGB(40,40,70) dbtfix.BorderSizePixel = 0 dbtfix.Parent = dbTitle
+local dbtfix = Instance.new("Frame")
+dbtfix.Size = UDim2.new(1,0,0.5,0)
+dbtfix.Position = UDim2.new(0,0,0.5,0)
+dbtfix.BackgroundColor3 = Color3.fromRGB(35,35,70)
+dbtfix.BorderSizePixel = 0
+dbtfix.ZIndex = 999
+dbtfix.Parent = dbTitle
 
 local dbTitleLabel = Instance.new("TextLabel")
-dbTitleLabel.Text = "📊 Анализ трейда"
+dbTitleLabel.Text = "📊 Анализ трейда  (тяни чтобы переместить)"
 dbTitleLabel.Size = UDim2.new(1, -10, 1, 0)
 dbTitleLabel.Position = UDim2.new(0, 10, 0, 0)
 dbTitleLabel.BackgroundTransparency = 1
-dbTitleLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
-dbTitleLabel.TextSize = 14
+dbTitleLabel.TextColor3 = Color3.fromRGB(180, 180, 255)
+dbTitleLabel.TextSize = 13
 dbTitleLabel.Font = Enum.Font.GothamBold
 dbTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+dbTitleLabel.ZIndex = 999
 dbTitleLabel.Parent = dbTitle
 
 -- Левая колонка — МОИ предметы
 local myCol = Instance.new("Frame")
-myCol.Size = UDim2.new(0.5, -8, 1, -38)
-myCol.Position = UDim2.new(0, 6, 0, 34)
+myCol.Size = UDim2.new(0.5, -8, 1, -60)
+myCol.Position = UDim2.new(0, 6, 0, 36)
 myCol.BackgroundColor3 = Color3.fromRGB(20, 40, 20)
 myCol.BorderSizePixel = 0
+myCol.ZIndex = 999
 myCol.Parent = debugFrame
 local mycc = Instance.new("UICorner") mycc.CornerRadius = UDim.new(0,7) mycc.Parent = myCol
 
@@ -758,42 +778,46 @@ myColTitle.Text = "👤 Ты отдаёшь"
 myColTitle.Size = UDim2.new(1, 0, 0, 22)
 myColTitle.Position = UDim2.new(0, 0, 0, 2)
 myColTitle.BackgroundTransparency = 1
-myColTitle.TextColor3 = Color3.fromRGB(100, 220, 100)
+myColTitle.TextColor3 = Color3.fromRGB(100, 230, 100)
 myColTitle.TextSize = 12
 myColTitle.Font = Enum.Font.GothamBold
 myColTitle.TextXAlignment = Enum.TextXAlignment.Center
+myColTitle.ZIndex = 999
 myColTitle.Parent = myCol
 
 local myItemsLabel = Instance.new("TextLabel")
-myItemsLabel.Text = "—"
-myItemsLabel.Size = UDim2.new(1, -8, 1, -50)
+myItemsLabel.Text = "ожидание трейда..."
+myItemsLabel.Size = UDim2.new(1, -8, 1, -52)
 myItemsLabel.Position = UDim2.new(0, 4, 0, 26)
 myItemsLabel.BackgroundTransparency = 1
-myItemsLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
+myItemsLabel.TextColor3 = Color3.fromRGB(180, 255, 180)
 myItemsLabel.TextSize = 11
 myItemsLabel.Font = Enum.Font.Gotham
 myItemsLabel.TextXAlignment = Enum.TextXAlignment.Left
 myItemsLabel.TextYAlignment = Enum.TextYAlignment.Top
 myItemsLabel.TextWrapped = true
+myItemsLabel.ZIndex = 999
 myItemsLabel.Parent = myCol
 
 local myTotalLabel = Instance.new("TextLabel")
-myTotalLabel.Text = "Итого: 0"
-myTotalLabel.Size = UDim2.new(1, 0, 0, 22)
-myTotalLabel.Position = UDim2.new(0, 0, 1, -24)
+myTotalLabel.Text = "Итого: —"
+myTotalLabel.Size = UDim2.new(1, 0, 0, 24)
+myTotalLabel.Position = UDim2.new(0, 0, 1, -26)
 myTotalLabel.BackgroundTransparency = 1
-myTotalLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-myTotalLabel.TextSize = 13
+myTotalLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
+myTotalLabel.TextSize = 14
 myTotalLabel.Font = Enum.Font.GothamBold
 myTotalLabel.TextXAlignment = Enum.TextXAlignment.Center
+myTotalLabel.ZIndex = 999
 myTotalLabel.Parent = myCol
 
 -- Правая колонка — ИХ предметы
 local theirCol = Instance.new("Frame")
-theirCol.Size = UDim2.new(0.5, -8, 1, -38)
-theirCol.Position = UDim2.new(0.5, 2, 0, 34)
+theirCol.Size = UDim2.new(0.5, -8, 1, -60)
+theirCol.Position = UDim2.new(0.5, 2, 0, 36)
 theirCol.BackgroundColor3 = Color3.fromRGB(40, 20, 20)
 theirCol.BorderSizePixel = 0
+theirCol.ZIndex = 999
 theirCol.Parent = debugFrame
 local thcc = Instance.new("UICorner") thcc.CornerRadius = UDim.new(0,7) thcc.Parent = theirCol
 
@@ -802,46 +826,50 @@ theirColTitle.Text = "🎯 Ты получаешь"
 theirColTitle.Size = UDim2.new(1, 0, 0, 22)
 theirColTitle.Position = UDim2.new(0, 0, 0, 2)
 theirColTitle.BackgroundTransparency = 1
-theirColTitle.TextColor3 = Color3.fromRGB(220, 100, 100)
+theirColTitle.TextColor3 = Color3.fromRGB(230, 100, 100)
 theirColTitle.TextSize = 12
 theirColTitle.Font = Enum.Font.GothamBold
 theirColTitle.TextXAlignment = Enum.TextXAlignment.Center
+theirColTitle.ZIndex = 999
 theirColTitle.Parent = theirCol
 
 local theirItemsLabel = Instance.new("TextLabel")
-theirItemsLabel.Text = "—"
-theirItemsLabel.Size = UDim2.new(1, -8, 1, -50)
+theirItemsLabel.Text = "ожидание трейда..."
+theirItemsLabel.Size = UDim2.new(1, -8, 1, -52)
 theirItemsLabel.Position = UDim2.new(0, 4, 0, 26)
 theirItemsLabel.BackgroundTransparency = 1
-theirItemsLabel.TextColor3 = Color3.fromRGB(255, 200, 200)
+theirItemsLabel.TextColor3 = Color3.fromRGB(255, 180, 180)
 theirItemsLabel.TextSize = 11
 theirItemsLabel.Font = Enum.Font.Gotham
 theirItemsLabel.TextXAlignment = Enum.TextXAlignment.Left
 theirItemsLabel.TextYAlignment = Enum.TextYAlignment.Top
 theirItemsLabel.TextWrapped = true
+theirItemsLabel.ZIndex = 999
 theirItemsLabel.Parent = theirCol
 
 local theirTotalLabel = Instance.new("TextLabel")
-theirTotalLabel.Text = "Итого: 0"
-theirTotalLabel.Size = UDim2.new(1, 0, 0, 22)
-theirTotalLabel.Position = UDim2.new(0, 0, 1, -24)
+theirTotalLabel.Text = "Итого: —"
+theirTotalLabel.Size = UDim2.new(1, 0, 0, 24)
+theirTotalLabel.Position = UDim2.new(0, 0, 1, -26)
 theirTotalLabel.BackgroundTransparency = 1
-theirTotalLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-theirTotalLabel.TextSize = 13
+theirTotalLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+theirTotalLabel.TextSize = 14
 theirTotalLabel.Font = Enum.Font.GothamBold
 theirTotalLabel.TextXAlignment = Enum.TextXAlignment.Center
+theirTotalLabel.ZIndex = 999
 theirTotalLabel.Parent = theirCol
 
--- Итоговая строка внизу (прибыль / убыток)
+-- Итоговая строка — вердикт + разница
 local resultLabel = Instance.new("TextLabel")
-resultLabel.Text = ""
-resultLabel.Size = UDim2.new(1, -12, 0, 22)
-resultLabel.Position = UDim2.new(0, 6, 1, -26)
+resultLabel.Text = "Открой трейд чтобы увидеть анализ"
+resultLabel.Size = UDim2.new(1, -12, 0, 24)
+resultLabel.Position = UDim2.new(0, 6, 1, -28)
 resultLabel.BackgroundTransparency = 1
-resultLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 resultLabel.TextSize = 13
 resultLabel.Font = Enum.Font.GothamBold
 resultLabel.TextXAlignment = Enum.TextXAlignment.Center
+resultLabel.ZIndex = 999
 resultLabel.Parent = debugFrame
 
 -- Функция обновления панели отладки
