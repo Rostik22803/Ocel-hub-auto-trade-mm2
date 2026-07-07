@@ -452,4 +452,4 @@ toggleBtn.MouseButton1Click:Connect(function()
         statusLabel.Text = "Статус: ВЫКЛЮЧЕН"
         statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
     end
-end) 
+end)
