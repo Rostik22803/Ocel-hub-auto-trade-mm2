@@ -1,5 +1,5 @@
 -- =============================================
--- MM2 Auto Trader v5.1 (NO-VISIBLE TEXT SCANNER)
+-- MM2 Auto Trader v5.2 (SYNTAX & SCAN FIX)
 -- =============================================
 
 local Players           = game:GetService("Players")
@@ -56,7 +56,7 @@ local ItemValues = {
 -- ИНТЕРФЕЙС GUI
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2TraderUI_v51"
+screenGui.Name = "MM2TraderUI_v52"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = PlayerGui
@@ -80,7 +80,7 @@ titleBar.Parent = mainFrame
 local tc = Instance.new("UICorner") tc.CornerRadius = UDim.new(0, 10) tc.Parent = titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v5.1"
+titleLabel.Text = "MM2 Auto Trader v5.2"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -238,7 +238,7 @@ local function processTradeLogic()
     
     -- Ищем фрейм трейда исключительно по наличию текста "YOUR OFFER"
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v51" then
+        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v52" then
             for _, desc in ipairs(gui:GetDescendants()) do
                 if desc:IsA("TextLabel") and desc.Text:upper() == "YOUR OFFER" then
                     tradeFrame = desc.Parent
@@ -246,7 +246,7 @@ local function processTradeLogic()
                 end
             end
         end
-        if tradeFrame then breakend
+        if tradeFrame then break end
     end
 
     -- Если заголовка нет вообще в структуре — обнуляем UI
@@ -267,9 +267,8 @@ local function processTradeLogic()
     -- Рассчитываем горизонтальный центр окна
     local tradeCenterX = tradeFrame.AbsolutePosition.X + (tradeFrame.AbsoluteSize.X / 2)
 
-    -- Сканируем всё внутри фрейма БЕЗ проверки AbsoluteVisible для родителя
+    -- Сканируем всё внутри фрейма
     for _, obj in ipairs(tradeFrame:GetDescendants()) do
-        -- Парсим названия предметов (отключаем жесткую проверку AbsoluteVisible)
         if obj:IsA("TextLabel") and obj.Text ~= "" then
             local matched = cleanItemName(obj.Text)
             if matched and not obj.Text:upper():find("OFFER") then
@@ -282,7 +281,7 @@ local function processTradeLogic()
             end
         end
 
-        -- Кнопки управления трейдом
+        -- Кнопки
         if obj:IsA("TextButton") then
             local name = obj.Name:lower()
             local text = obj.Text:lower()
