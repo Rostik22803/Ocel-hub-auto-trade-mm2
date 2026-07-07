@@ -1,5 +1,5 @@
 -- =============================================
--- MM2 Auto Trader v4.4 (SCREEN X-AXIS SPLITTER)
+-- MM2 Auto Trader v4.5 (STRICT TRADE CONTEXT)
 -- =============================================
 
 local Players           = game:GetService("Players")
@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer       = Players.LocalPlayer
 local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
 
--- [АВТО-ОЧИСТКА ВСЕХ СТАРЫХ ВЕРСИЙ]
+-- [ПОЛНАЯ ОЧИСТКА СТАРЫХ ГУИ]
 for _, gui in ipairs(PlayerGui:GetChildren()) do
     if gui.Name:find("MM2TraderUI") or gui.Name == "MM2TraderDebug" then
         gui:Destroy()
@@ -56,10 +56,10 @@ local ItemValues = {
 }
 
 -- =============================================
--- СОЗДАНИЕ ИНТЕРФЕЙСА (v4.4)
+-- ИНТЕРФЕЙС v4.5
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2TraderUI_v44"
+screenGui.Name = "MM2TraderUI_v45"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = PlayerGui
@@ -84,7 +84,7 @@ titleBar.Parent = mainFrame
 local tc = Instance.new("UICorner") tc.CornerRadius = UDim.new(0, 10) tc.Parent = titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v4.4"
+titleLabel.Text = "MM2 Auto Trader v4.5"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -239,17 +239,23 @@ resultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
 resultLabel.Parent = debugFrame
 
 -- =============================================
--- ГЛОБАЛЬНЫЙ ПОИСК ОКНА
+-- ЛОГИКА ОПРЕДЕЛЕНИЯ ОКНА ТРЕЙДА
 -- =============================================
-local function findTradeWindowGlobal()
+local function getStrictTradeFrame()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v44" then
-            for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("TextLabel") and (desc.Text:upper() == "YOUR OFFER" or desc.Text:upper() == "THEIR OFFER") then
-                    if desc.Parent and desc.Parent.Visible then
-                        return desc.Parent -- Главная панель обмена
-                    end
+        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v45" then
+            -- Ищем фрейм Trade, у которого родителем Main
+            local main = gui:FindFirstChild("Main", true)
+            if main then
+                local trade = main:FindFirstChild("Trade")
+                if trade and trade.Visible then
+                    return trade
                 end
+            end
+            -- Запасной глобальный поиск фрейма с именем Trade
+            local tradeFallback = gui:FindFirstChild("Trade", true)
+            if tradeFallback and tradeFallback.Visible and tradeFallback:FindFirstChild("YourSlots", true) then
+                return tradeFallback
             end
         end
     end
@@ -259,12 +265,6 @@ end
 local function cleanItemName(text)
     if not text or text == "" or tonumber(text) or text == "Label" then return nil end
     local clean = text:match("^%s*(.-)%s*$")
-    
-    -- Исключаем любые системные названия кнопок
-    local lowerText = clean:lower()
-    if lowerText == "accept" or lowerText == "decline" or lowerText:find("offer") or lowerText:find("trade") then
-        return nil
-    end
     
     if ItemValues[clean] then return clean end
     for name, _ in pairs(ItemValues) do
@@ -276,14 +276,18 @@ local function cleanItemName(text)
 end
 
 -- =============================================
--- ОСНОВНАЯ ЛОГИКА
+-- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ
 -- =============================================
 local function processTradeLogic()
-    local tradeMain = findTradeWindowGlobal()
+    local tradeFrame = getStrictTradeFrame()
     
-    if not tradeMain then
+    if not tradeFrame then
         resultLabel.Text = "⏳ Окно обмена MM2 закрыто или не найдено"
         resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        myItemsLabel.Text = "Твои вещи: пусто"
+        theirItemsLabel.Text = "Вещи оппонента: пусто"
+        myTotalLabel.Text = "Ты даешь: 0"
+        theirTotalLabel.Text = "Тебе дают: 0"
         return
     end
 
@@ -292,30 +296,44 @@ local function processTradeLogic()
     local acceptBtn, declineBtn
     local opponentAccepted = false
 
-    -- Находим физический центр окна обмена по горизонтали (ось X)
-    local tradeCenterX = tradeMain.AbsolutePosition.X + (tradeMain.AbsoluteSize.X / 2)
+    -- Находим центр Окна Обмена для точного деления сторон на мобилках
+    local tradeCenterX = tradeFrame.AbsolutePosition.X + (tradeFrame.AbsoluteSize.X / 2)
 
-    -- Сканируем всё окно обмена без привязки к именам папок
-    for _, obj in ipairs(tradeMain:GetDescendants()) do
-        -- 1. Сбор предметов
-        if obj:IsA("TextLabel") and obj.Visible then
+    -- Сканируем объекты ИСКЛЮЧИТЕЛЬНО внутри фрейма обмена
+    for _, obj in ipairs(tradeFrame:GetDescendants()) do
+        
+        -- 1. Сбор предметов из слотов обмена
+        if obj:IsA("TextLabel") and obj.Visible and obj.Text ~= "" then
             local matched = cleanItemName(obj.Text)
             if matched then
-                -- Разделяем строго: левая половина экрана — ТВОЁ, правая — ОППОНЕНТА
-                if obj.AbsolutePosition.X < tradeCenterX then
+                local fullPath = obj:GetFullName():lower()
+                
+                -- Проверка по названию папки слота
+                if fullPath:find("your") or fullPath:find("my") then
                     table.insert(myItems, matched)
-                else
+                elseif fullPath:find("their") or fullPath:find("other") or fullPath:find("them") then
                     table.insert(theirItems, matched)
+                else
+                    -- Жесткий фоллбэк: деление по левой/правой стороне фрейма обмена
+                    if obj.AbsolutePosition.X < tradeCenterX then
+                        table.insert(myItems, matched)
+                    else
+                        table.insert(theirItems, matched)
+                    end
                 end
             end
 
-            -- Проверяем согласие оппонента
-            if obj.Text:upper():find("ACCEPTED") or obj.Text:upper():find("HAS ACCEPTED") then
-                opponentAccepted = true
+            -- Проверяем кнопку согласия оппонента
+            local txtUpper = obj.Text:upper()
+            if txtUpper:find("ACCEPTED") or txtUpper:find("СОГЛАСЕН") then
+                -- Убеждаемся, что это не наш собственный текст статуса
+                if obj:GetFullName():lower():find("their") or obj.AbsolutePosition.X > tradeCenterX then
+                    opponentAccepted = true
+                end
             end
         end
 
-        -- 2. Сбор кнопок управления
+        -- 2. Сбор кнопок управления внутри трейд-окна
         if obj:IsA("TextButton") and obj.Visible then
             local name = obj.Name:lower()
             local text = obj.Text:lower()
@@ -324,7 +342,7 @@ local function processTradeLogic()
         end
     end
 
-    -- Подсчет результатов
+    -- Считаем стоимость
     local myTotal, theirTotal = 0, 0
     local myLines, theirLines = {}, {}
 
@@ -350,6 +368,7 @@ local function processTradeLogic()
         return
     end
 
+    -- Расчет профита
     local profitValid = false
     local percent = 0
     if myTotal > 0 then
@@ -360,6 +379,7 @@ local function processTradeLogic()
         profitValid = theirTotal > 0
     end
 
+    -- Авто-выполнение действий
     if traderEnabled then
         if profitValid then
             resultLabel.Text = "✅ Выгодно ("..percent.."%). Жму ACCEPT!"
@@ -393,7 +413,7 @@ local function processTradeLogic()
 end
 
 -- =============================================
--- ПОТОКИ И КНОПКИ
+-- ЦИКЛ И КЛИКИ МЕНЮ
 -- =============================================
 task.spawn(function()
     while true do
@@ -432,4 +452,4 @@ toggleBtn.MouseButton1Click:Connect(function()
         statusLabel.Text = "Статус: ВЫКЛЮЧЕН"
         statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
     end
-end)
+end) 
