@@ -8,15 +8,22 @@ local UserInputService  = game:GetService("UserInputService")
 local LocalPlayer       = Players.LocalPlayer
 local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
 
+-- [АВТО-ОЧИСТКА СТАРЫХ ВЕРСИЙ ПРИ ИНЖЕКТЕ]
+if PlayerGui:FindFirstChild("MM2TraderUI_v35") then
+    PlayerGui.MM2TraderUI_v35:Destroy()
+end
+if PlayerGui:FindFirstChild("MM2TraderUI_v4") then
+    PlayerGui.MM2TraderUI_v4:Destroy()
+end
+
 -- =============================================
 -- НАСТРОЙКИ
 -- =============================================
 local MIN_PROFIT_PERCENT  = 5       -- % прибыли для принятия трейда
 local traderEnabled       = false   -- включён ли автотрейд
-local AUTO_DECLINE_UNKNOWN = false  -- отклонять ли при неизвестных предметах
 
 -- =============================================
--- ПОЛНАЯ ТАБЛИЦА ЦЕН MM2 ( game.guide )
+-- ПОЛНАЯ ТАБЛИЦА ЦЕН MM2
 -- =============================================
 local ItemValues = {
     -- ===== ANCIENTS =====
@@ -107,7 +114,7 @@ local ItemValues = {
 }
 
 -- =============================================
--- СОЗДАНИЕ ИНТЕРФЕЙСА (ПОВЕРХ ИГРЫ)
+-- СОЗДАНИЕ ИНТЕРФЕЙСА (v4.0)
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MM2TraderUI_v4"
@@ -290,17 +297,15 @@ resultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
 resultLabel.Parent = debugFrame
 
 -- =============================================
--- АЛГОРИТМ ПОИСКА И СКАНИРОВАНИЯ MM2 GUI
+-- АЛГОРИТМ ПОИСКА И СКАНИРОВАНИЯ GUI
 -- =============================================
 local function findMM2TradeWindow()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
         if gui:IsA("ScreenGui") then
-            -- Ищем блоки по текстам заголовков на скриншоте
             local yourOffer = gui:FindFirstChild("YOUR OFFER", true) or gui:FindFirstChild("Your Offer", true)
             local theirOffer = gui:FindFirstChild("THEIR OFFER", true) or gui:FindFirstChild("Their Offer", true)
             
             if yourOffer or theirOffer then
-                -- Возвращаем корневой фрейм, в котором лежат эти надписи
                 if yourOffer then return yourOffer.Parent end
             end
         end
@@ -310,10 +315,9 @@ end
 
 local function cleanItemName(text)
     if not text or text == "" or tonumber(text) then return nil end
-    local clean = text:match("^%s*(.-)%s*$") -- убираем пробелы
+    local clean = text:match("^%s*(.-)%s*$")
     if ItemValues[clean] then return clean end
     
-    -- Нечеткий поиск
     for name, _ in pairs(ItemValues) do
         if name:lower() == clean:lower() or clean:lower():find(name:lower(), 1, true) then
             return name
@@ -322,61 +326,36 @@ local function cleanItemName(text)
     return nil
 end
 
-local function scanTradeSide(containerFrame)
-    local items = {}
-    if not containerFrame then return items end
+local function getItemsByScreenSides(tradeMain)
+    local myItems = {}
+    local theirItems = {}
     
-    for _, obj in ipairs(containerFrame:GetDescendants()) do
+    for _, obj in ipairs(tradeMain:GetDescendants()) do
         if obj:IsA("TextLabel") and obj.Visible then
             local matched = cleanItemName(obj.Text)
             if matched then
-                table.insert(items, matched)
-            end
-        end
-    end
-    return items
-end
-
--- Основная функция проверки
-local function processTradeLogic()
-    local tradeMain = findMM2TradeWindow()
-    
-    if not tradeMain then
-        resultLabel.Text = "❌ Окно обмена MM2 не обнаружено"
-        resultLabel.TextColor3 = Color3.fromRGB(220, 100, 100)
-        return
-    end
-
-    -- На скриншоте контейнеры называются прямо по тексту заголовков
-    local yourOfferBox = tradeMain:FindFirstChild("YOUR OFFER") or tradeMain
-    local theirOfferBox = tradeMain:FindFirstChild("THEIR OFFER") or tradeMain
-
-    local myItems = scanTradeSide(yourOfferBox)
-    local theirItems = scanTradeSide(theirOfferBox)
-
-    -- Фильтруем пересечения (чтобы мои не считались чужими, если они в одном общем фрейме)
-    -- Если скрипт нашел всё в одном месте, разделим по половинам экрана
-    if #myItems == 0 or #theirItems == 0 then
-        myItems = {}
-        theirItems = {}
-        local screenW = workspace.CurrentCamera.ViewportSize.X
-        for _, obj in ipairs(tradeMain:GetDescendants()) do
-            if obj:IsA("TextLabel") and obj.Visible then
-                local matched = cleanItemName(obj.Text)
-                if matched then
-                    if obj.AbsolutePosition.Y < tradeMain.AbsolutePosition.Y + (tradeMain.AbsoluteSize.Y / 2) then
-                        -- Верхняя часть ("YOUR OFFER")
-                        table.insert(myItems, matched)
-                    else
-                        -- Нижняя часть ("THEIR OFFER")
-                        table.insert(theirItems, matched)
-                    end
+                if obj.AbsolutePosition.Y < tradeMain.AbsolutePosition.Y + (tradeMain.AbsoluteSize.Y * 0.48) then
+                    table.insert(myItems, matched)
+                else
+                    table.insert(theirItems, matched)
                 end
             end
         end
     end
+    return myItems, theirItems
+end
 
-    -- Считаем цены
+local function processTradeLogic()
+    local tradeMain = findMM2TradeWindow()
+    
+    if not tradeMain then
+        resultLabel.Text = "⏳ Окно обмена MM2 закрыто или не найдено"
+        resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        return
+    end
+
+    local myItems, theirItems = getItemsByScreenSides(tradeMain)
+
     local myTotal, theirTotal = 0, 0
     local myLines, theirLines = {}, {}
 
@@ -396,7 +375,6 @@ local function processTradeLogic()
     myTotalLabel.Text = "Ты даешь: " .. myTotal
     theirTotalLabel.Text = "Тебе дают: " .. theirTotal
 
-    -- Ищем кнопки управления на самом окне MM2
     local acceptBtn, declineBtn
     for _, btn in ipairs(tradeMain:GetDescendants()) do
         if btn:IsA("TextButton") then
@@ -406,7 +384,6 @@ local function processTradeLogic()
         end
     end
 
-    -- Проверка на надпись Оппонента "OTHER PLAYER HAS ACCEPTED."
     local opponentAccepted = false
     for _, textLabel in ipairs(tradeMain:GetDescendants()) do
         if textLabel:IsA("TextLabel") and textLabel.Text:upper():find("OTHER PLAYER HAS ACCEPTED") then
@@ -415,14 +392,12 @@ local function processTradeLogic()
         end
     end
 
-    -- Если трейд пустой
     if myTotal == 0 and theirTotal == 0 then
         resultLabel.Text = "Окна обмена пусты. Выставите предметы."
         resultLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
         return
     end
 
-    -- Логика выгоды
     local profitValid = false
     local percent = 0
     if myTotal > 0 then
@@ -430,17 +405,15 @@ local function processTradeLogic()
         percent = math.floor((diff / myTotal) * 100)
         profitValid = percent >= MIN_PROFIT_PERCENT
     else
-        profitValid = theirTotal > 0 -- Если мы ничего не даем, а нам дают — это выгодно
+        profitValid = theirTotal > 0
     end
 
-    -- САМОЕ ГЛАВНОЕ: Если оппонент ЕЩЕ НЕ нажал Accept
     if not opponentAccepted then
         resultLabel.Text = "⏳ Жду, пока другой игрок нажмет ACCEPT..."
         resultLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
-        return -- Выходим, ничего не нажимаем!
+        return 
     end
 
-    -- Если дошли сюда — значит другой игрок СОГЛАСЕН. Принимаем решение:
     if traderEnabled then
         if profitValid then
             resultLabel.Text = "✅ Выгодно ("..percent.."%). Подтверждаю!"
@@ -478,7 +451,7 @@ end
 -- =============================================
 task.spawn(function()
     while true do
-        task.wait(0.2) -- Быстрый отклик на нажатие кнопки игроком
+        task.wait(0.2)
         pcall(processTradeLogic)
     end
 end)
