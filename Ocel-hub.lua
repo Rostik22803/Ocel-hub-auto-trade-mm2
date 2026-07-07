@@ -707,7 +707,7 @@ tipLabel.Parent = mainFrame
 local debugFrame = Instance.new("Frame")
 debugFrame.Name = "DebugFrame"
 debugFrame.Size = UDim2.new(0, 420, 0, 260)
-debugFrame.Position = UDim2.new(0.5, -210, 0, 10)
+debugFrame.Position = UDim2.new(0, 20, 0, 270)
 debugFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
 debugFrame.BorderSizePixel = 0
 debugFrame.Active = true
@@ -1059,9 +1059,8 @@ local function handleTradeGui(tradeGui)
     task.wait(3) -- ждём заполнения предметов
 
     if not traderEnabled then
-        print("[Trader] Автотрейд выключен, пропускаем")
-        activeTradeGuis[tradeGui] = nil
-        return
+        print("[Trader] Автотрейд выключен — только отладка")
+        -- Автоклик не делаем, но отладку показываем дальше
     end
 
     -- Ищем все TextLabel с предметами
@@ -1123,17 +1122,22 @@ local function handleTradeGui(tradeGui)
     print("[Trader] Accept кнопка: " .. (acceptBtn  and acceptBtn.Name  or "не найдена"))
     print("[Trader] Decline кнопка: " .. (declineBtn and declineBtn.Name or "не найдена"))
 
-    if isProfitable(myItems, theirItems) then
-        print("[Trader] ✅ ПРИНИМАЕМ")
-        clickButton(acceptBtn)
+    -- Кликаем только если автотрейд включён
+    if traderEnabled then
+        if isProfitable(myItems, theirItems) then
+            print("[Trader] ✅ ПРИНИМАЕМ")
+            clickButton(acceptBtn)
+        else
+            print("[Trader] ❌ ОТКЛОНЯЕМ")
+            clickButton(declineBtn)
+        end
     else
-        print("[Trader] ❌ ОТКЛОНЯЕМ")
-        clickButton(declineBtn)
+        print("[Trader] Автотрейд выключен — решение только в отладке, без клика")
     end
 
     task.wait(2)
     activeTradeGuis[tradeGui] = nil
-    hideDebugPanel()
+    -- Не скрываем панель автоматически — игрок видит результат сам
 end
 
 -- =============================================
