@@ -1,120 +1,78 @@
 -- =============================================
--- MM2 Auto Trader v4.0 (REAL MM2 LAYOUT ADAPTED)
+-- MM2 Auto Trader v4.1 (FINAL STABLE FIXED)
 -- =============================================
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService  = game:GetService("UserInputService")
 local LocalPlayer       = Players.LocalPlayer
 local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
 
--- [АВТО-ОЧИСТКА СТАРЫХ ВЕРСИЙ ПРИ ИНЖЕКТЕ]
-if PlayerGui:FindFirstChild("MM2TraderUI_v35") then
-    PlayerGui.MM2TraderUI_v35:Destroy()
-end
-if PlayerGui:FindFirstChild("MM2TraderUI_v4") then
-    PlayerGui.MM2TraderUI_v4:Destroy()
+-- [АВТО-ОЧИСТКА ВСЕХ СТАРЫХ ВЕРСИЙ]
+for _, gui in ipairs(PlayerGui:GetChildren()) do
+    if gui.Name == "MM2TraderUI_v4" or gui.Name == "MM2TraderUI" or gui.Name == "MM2TraderDebug" then
+        gui:Destroy()
+    end
 end
 
 -- =============================================
 -- НАСТРОЙКИ
 -- =============================================
-local MIN_PROFIT_PERCENT  = 5       -- % прибыли для принятия трейда
-local traderEnabled       = false   -- включён ли автотрейд
+local MIN_PROFIT_PERCENT  = 5       
+local traderEnabled       = false   
 
 -- =============================================
--- ПОЛНАЯ ТАБЛИЦА ЦЕН MM2
+-- ТАБЛИЦА ЦЕН MM2
 -- =============================================
 local ItemValues = {
     -- ===== ANCIENTS =====
-    ["Nik's Scythe"]            = 125000000,
-    ["Blue Elderwood Blade"]    = 45000,
-    ["Red Icecrusher"]          = 45000,
-    ["Red Icepiercer"]          = 45000,
-    ["Blue Swirly Axe"]         = 40000,
-    ["Blue Synthwave"]          = 40000,
-    ["Gingerscope"]             = 17800,
-    ["Traveler's Axe"]          = 8400,
-    ["Celestial"]               = 2000,
-    ["Vampire's Axe"]           = 1200,
-    ["Harvester"]               = 248,
-    ["Icepiercer"]              = 163,
-    ["Batwing"]                 = 46,
-    ["Elderwood Scythe"]        = 44,
-    ["Hallowscythe"]            = 34,
-    ["Icebreaker"]              = 69,
-    ["Icewing"]                 = 15,
-    ["Logchopper"]              = 18,
+    ["Nik's Scythe"]            = 125000000, ["Blue Elderwood Blade"]    = 45000,
+    ["Red Icecrusher"]          = 45000,     ["Red Icepiercer"]          = 45000,
+    ["Blue Swirly Axe"]         = 40000,     ["Blue Synthwave"]          = 40000,
+    ["Gingerscope"]             = 17800,     ["Traveler's Axe"]          = 8400,
+    ["Celestial"]               = 2000,      ["Vampire's Axe"]           = 1200,
+    ["Harvester"]               = 248,       ["Icepiercer"]              = 163,
+    ["Batwing"]                 = 46,        ["Elderwood Scythe"]        = 44,
+    ["Hallowscythe"]            = 34,        ["Icebreaker"]              = 69,
+    ["Icewing"]                 = 15,        ["Logchopper"]              = 18,
     ["Swirly Axe"]              = 42,
 
     -- ===== CHROMA GODLYS =====
-    ["Chroma Traveler's Gun"]   = 220000,
-    ["Chroma Evergun"]          = 75000,
-    ["Chroma Evergreen"]        = 59300,
-    ["Chroma Bauble"]           = 35000,
-    ["Chroma Vampire's Gun"]    = 29000,
-    ["Chroma Constellation"]    = 27300,
-    ["Chroma Alienbeam"]        = 23500,
-    ["Chroma Raygun"]           = 14400,
-    ["Chroma Sunrise"]          = 11500,
-    ["Chroma Snowcannon"]       = 8600,
-    ["Chroma Blizzard"]         = 7900,
-    ["Chroma Sunset"]           = 6500,
-    ["Chroma Heart Wand"]       = 4700,
-    ["Chroma Snow Dagger"]      = 4400,
-    ["Chroma Snowstorm"]        = 4300,
-    ["Chroma Watergun"]         = 3400,
-    ["Chroma Treat"]            = 2600,
-    ["Chroma Sweet"]            = 2300,
-    ["Chroma Ornament"]         = 1800,
-    ["Chroma Darkbringer"]      = 70,
-    ["Chroma Lightbringer"]     = 65,
-    ["Chroma Luger"]            = 53,
-    ["Chroma Swirly Gun"]       = 42,
-    ["Chroma Candleflame"]      = 42,
-    ["Chroma Laser"]            = 44,
-    ["Chroma Cookiecane"]       = 38,
+    ["Chroma Traveler's Gun"]   = 220000,    ["Chroma Evergun"]          = 75000,
+    ["Chroma Evergreen"]        = 59300,     ["Chroma Bauble"]           = 35000,
+    ["Chroma Vampire's Gun"]    = 29000,     ["Chroma Constellation"]    = 27300,
+    ["Chroma Alienbeam"]        = 23500,     ["Chroma Raygun"]           = 14400,
+    ["Chroma Sunrise"]          = 11500,     ["Chroma Snowcannon"]       = 8600,
+    ["Chroma Blizzard"]         = 7900,      ["Chroma Sunset"]           = 6500,
+    ["Chroma Heart Wand"]       = 4700,      ["Chroma Snow Dagger"]      = 4400,
+    ["Chroma Snowstorm"]        = 4300,      ["Chroma Watergun"]         = 3400,
+    ["Chroma Treat"]            = 2600,      ["Chroma Sweet"]            = 2300,
+    ["Chroma Darkbringer"]      = 70,        ["Chroma Lightbringer"]     = 65,
+    ["Chroma Luger"]            = 53,        ["Chroma Laser"]            = 44,
 
     -- ===== GODLYS =====
-    ["Traveler's Gun"]          = 4900,
-    ["Evergun"]                 = 3500,
-    ["Evergreen"]               = 2500,
-    ["Darkshot"]                = 1600,
-    ["Darksword"]               = 1500,
-    ["Corrupt"]                 = 475,
-    ["Watergun"]                = 248,
-    ["Candy"]                   = 83,
-    ["Heartblade"]              = 69,
-    ["Bat"]                     = 61,
-    ["Luger"]                   = 46,
-    ["Red Luger"]               = 44,
-    ["Sugar"]                   = 39,
-    ["Shark"]                   = 22,
-    ["Laser"]                   = 24,
-    ["Slasher"]                 = 19,
-    ["Pixel"]                   = 19,
-    ["Iceflake"]                = 19,
-    ["Ice Dragon"]              = 7,
-    ["Seer"]                    = 3,
-    ["Pearl"]                   = 98,
-    ["Pearlshine"]              = 103,
-    ["Yellow Seer"]             = 2,
-    ["Orange Seer"]             = 2,
-    ["Red Seer"]                = 3,
-    ["Cyan Seer"]               = 3,
-    ["Blue Seer"]               = 3,
-    ["Purple Seer"]             = 3,
+    ["Traveler's Gun"]          = 4900,      ["Evergun"]                 = 3500,
+    ["Evergreen"]               = 2500,      ["Darkshot"]                = 1600,
+    ["Darksword"]               = 1500,      ["Corrupt"]                 = 475,
+    ["Watergun"]                = 248,       ["Candy"]                   = 83,
+    ["Heartblade"]              = 69,        ["Bat"]                     = 61,
+    ["Luger"]                   = 46,        ["Red Luger"]               = 44,
+    ["Sugar"]                   = 39,        ["Shark"]                   = 22,
+    ["Laser"]                   = 24,        ["Slasher"]                 = 19,
+    ["Pixel"]                   = 19,        ["Iceflake"]                = 19,
+    ["Ice Dragon"]              = 7,         ["Seer"]                    = 3,
+    ["Pearl"]                   = 98,        ["Pearlshine"]              = 103,
+    ["Yellow Seer"]             = 2,         ["Orange Seer"]             = 2,
+    ["Red Seer"]                = 3,         ["Cyan Seer"]               = 3,
+    ["Blue Seer"]               = 3,         ["Purple Seer"]             = 3,
 
     -- ===== LEGENDARIES & RARE =====
-    ["Predator"]                = 4,
-    ["Shaded"]                  = 2,
-    ["Vampire (Gun)"]           = 48,
-    ["JD"]                      = 35,
+    ["Predator"]                = 4,         ["Shaded"]                  = 2,
+    ["Vampire (Gun)"]           = 48,        ["JD"]                      = 35,
     ["Cotton Candy"]            = 40,
 }
 
 -- =============================================
--- СОЗДАНИЕ ИНТЕРФЕЙСА (v4.0)
+-- СОЗДАНИЕ ИНТЕРФЕЙСА (v4.1)
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MM2TraderUI_v4"
@@ -142,7 +100,7 @@ titleBar.Parent = mainFrame
 local tc = Instance.new("UICorner") tc.CornerRadius = UDim.new(0, 10) tc.Parent = titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v4.0"
+titleLabel.Text = "MM2 Auto Trader v4.1"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -218,7 +176,7 @@ debugToggleBtn.Parent = mainFrame
 local dbc = Instance.new("UICorner") dbc.CornerRadius = UDim.new(0,6) dbc.Parent = debugToggleBtn
 
 -- =============================================
--- ПАНЕЛЬ ОТЛАДКИ И СТАТИСТИКИ
+-- ПАНЕЛЬ АНАЛИЗА СЛОТОВ
 -- =============================================
 local debugFrame = Instance.new("Frame")
 debugFrame.Size = UDim2.new(0, 400, 0, 250)
@@ -297,64 +255,59 @@ resultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
 resultLabel.Parent = debugFrame
 
 -- =============================================
--- АЛГОРИТМ ПОИСКА И СКАНИРОВАНИЯ GUI
+-- ТОЧНЫЙ ПЕРЕХВАТ ТРЕЙД-ОКНА MM2
 -- =============================================
-local function findMM2TradeWindow()
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
-            local yourOffer = gui:FindFirstChild("YOUR OFFER", true) or gui:FindFirstChild("Your Offer", true)
-            local theirOffer = gui:FindFirstChild("THEIR OFFER", true) or gui:FindFirstChild("Their Offer", true)
-            
-            if yourOffer or theirOffer then
-                if yourOffer then return yourOffer.Parent end
+local function getMM2TradeGui()
+    local paperGui = PlayerGui:FindFirstChild("PaperGui")
+    if paperGui then
+        local main = paperGui:FindFirstChild("Main")
+        if main then
+            local trade = main:FindFirstChild("Trade")
+            if trade and trade.Visible then
+                return trade
             end
         end
     end
     return nil
 end
 
-local function cleanItemName(text)
-    if not text or text == "" or tonumber(text) then return nil end
-    local clean = text:match("^%s*(.-)%s*$")
-    if ItemValues[clean] then return clean end
+local function parseSlots(slotsFrame)
+    local items = {}
+    if not slotsFrame then return items end
     
-    for name, _ in pairs(ItemValues) do
-        if name:lower() == clean:lower() or clean:lower():find(name:lower(), 1, true) then
-            return name
-        end
-    end
-    return nil
-end
-
-local function getItemsByScreenSides(tradeMain)
-    local myItems = {}
-    local theirItems = {}
-    
-    for _, obj in ipairs(tradeMain:GetDescendants()) do
-        if obj:IsA("TextLabel") and obj.Visible then
-            local matched = cleanItemName(obj.Text)
-            if matched then
-                if obj.AbsolutePosition.Y < tradeMain.AbsolutePosition.Y + (tradeMain.AbsoluteSize.Y * 0.48) then
-                    table.insert(myItems, matched)
-                else
-                    table.insert(theirItems, matched)
+    for _, slot in ipairs(slotsFrame:GetChildren()) do
+        if slot:IsA("GuiObject") and slot.Name:find("Slot") then
+            local container = slot:FindFirstChild("Container")
+            if container then
+                local itemLabel = container:FindFirstChild("ItemName") or container:FindFirstChild("TextLabel")
+                if itemLabel and itemLabel:IsA("TextLabel") and itemLabel.Text ~= "" and itemLabel.Text ~= "Label" then
+                    table.insert(items, itemLabel.Text)
                 end
             end
         end
     end
-    return myItems, theirItems
+    return items
 end
 
+-- =============================================
+-- ОСНОВНАЯ ЛОГИКА СКАНИРОВАНИЯ И КЛИКА
+-- =============================================
 local function processTradeLogic()
-    local tradeMain = findMM2TradeWindow()
+    local tradeMain = getMM2TradeGui()
     
     if not tradeMain then
         resultLabel.Text = "⏳ Окно обмена MM2 закрыто или не найдено"
         resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        myItemsLabel.Text = "Твои вещи: пусто"
+        theirItemsLabel.Text = "Вещи оппонента: пусто"
+        myTotalLabel.Text = "Ты даешь: 0"
+        theirTotalLabel.Text = "Тебе дают: 0"
         return
     end
 
-    local myItems, theirItems = getItemsByScreenSides(tradeMain)
+    -- Напрямую забираем айтемы из контейнеров слотов MM2
+    local myItems = parseSlots(tradeMain:FindFirstChild("YourSlots", true))
+    local theirItems = parseSlots(tradeMain:FindFirstChild("TheirSlots", true))
 
     local myTotal, theirTotal = 0, 0
     local myLines, theirLines = {}, {}
@@ -375,18 +328,15 @@ local function processTradeLogic()
     myTotalLabel.Text = "Ты даешь: " .. myTotal
     theirTotalLabel.Text = "Тебе дают: " .. theirTotal
 
-    local acceptBtn, declineBtn
-    for _, btn in ipairs(tradeMain:GetDescendants()) do
-        if btn:IsA("TextButton") then
-            local t = btn.Text:lower()
-            if t:find("accept") or btn.Name:lower():find("accept") then acceptBtn = btn end
-            if t:find("decline") or btn.Name:lower():find("decline") then declineBtn = btn end
-        end
-    end
+    -- Ищем кнопки управления оригинального UI
+    local acceptBtn = tradeMain:FindFirstChild("Accept", true)
+    local declineBtn = tradeMain:FindFirstChild("Decline", true)
 
+    -- Читаем статус согласия оппонента
     local opponentAccepted = false
-    for _, textLabel in ipairs(tradeMain:GetDescendants()) do
-        if textLabel:IsA("TextLabel") and textLabel.Text:upper():find("OTHER PLAYER HAS ACCEPTED") then
+    local statusFrame = tradeMain:FindFirstChild("Status", true) or tradeMain
+    for _, txt in ipairs(statusFrame:GetDescendants()) do
+        if txt:IsA("TextLabel") and (txt.Text:upper():find("ACCEPTED") or txt.Text:upper():find("СОГЛАСЕН")) then
             opponentAccepted = true
             break
         end
@@ -419,8 +369,8 @@ local function processTradeLogic()
             resultLabel.Text = "✅ Выгодно ("..percent.."%). Подтверждаю!"
             resultLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
             if acceptBtn then
-                acceptBtn.MouseButton1Click:Fire()
                 pcall(function()
+                    acceptBtn.MouseButton1Click:Fire()
                     local VIM = game:GetService("VirtualInputManager")
                     local pos = acceptBtn.AbsolutePosition + acceptBtn.AbsoluteSize / 2
                     VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
@@ -432,7 +382,7 @@ local function processTradeLogic()
             resultLabel.Text = "❌ Невыгодно ("..percent.."%). Отклоняю!"
             resultLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
             if declineBtn then
-                declineBtn.MouseButton1Click:Fire()
+                pcall(function() declineBtn.MouseButton1Click:Fire() end)
             end
         end
     else
@@ -447,7 +397,7 @@ local function processTradeLogic()
 end
 
 -- =============================================
--- ЦИКЛ И КНОПКИ ИНТЕРФЕЙСА
+-- СТАРТ ПОТОКА И ОБРАБОТКА КНОПОК ПОЛЬЗОВАТЕЛЯ
 -- =============================================
 task.spawn(function()
     while true do
