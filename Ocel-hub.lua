@@ -1,5 +1,5 @@
 -- =============================================
--- MM2 Auto Trader v4.5 (STRICT TRADE CONTEXT)
+-- MM2 Auto Trader v4.6 (FINAL STRUCT FILTER)
 -- =============================================
 
 local Players           = game:GetService("Players")
@@ -56,10 +56,10 @@ local ItemValues = {
 }
 
 -- =============================================
--- ИНТЕРФЕЙС v4.5
+-- ИНТЕРФЕЙС v4.6
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2TraderUI_v45"
+screenGui.Name = "MM2TraderUI_v46"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = PlayerGui
@@ -84,7 +84,7 @@ titleBar.Parent = mainFrame
 local tc = Instance.new("UICorner") tc.CornerRadius = UDim.new(0, 10) tc.Parent = titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v4.5"
+titleLabel.Text = "MM2 Auto Trader v4.6"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -239,23 +239,18 @@ resultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
 resultLabel.Parent = debugFrame
 
 -- =============================================
--- ЛОГИКА ОПРЕДЕЛЕНИЯ ОКНА ТРЕЙДА
+-- ИСПРАВЛЕННАЯ ЛОГИКА ПОИСКА ОКНА ТРЕЙДА
 -- =============================================
-local function getStrictTradeFrame()
+local function getTradeFrame()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v45" then
-            -- Ищем фрейм Trade, у которого родителем Main
-            local main = gui:FindFirstChild("Main", true)
-            if main then
-                local trade = main:FindFirstChild("Trade")
-                if trade and trade.Visible then
-                    return trade
+        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v46" then
+            -- Ищем элемент с текстом "YOUR OFFER"
+            for _, desc in ipairs(gui:GetDescendants()) do
+                if desc:IsA("TextLabel") and desc.Text:upper() == "YOUR OFFER" then
+                    if desc.Parent and desc.Parent.Visible then
+                        return desc.Parent -- Это главный контейнер Trade
+                    end
                 end
-            end
-            -- Запасной глобальный поиск фрейма с именем Trade
-            local tradeFallback = gui:FindFirstChild("Trade", true)
-            if tradeFallback and tradeFallback.Visible and tradeFallback:FindFirstChild("YourSlots", true) then
-                return tradeFallback
             end
         end
     end
@@ -276,10 +271,10 @@ local function cleanItemName(text)
 end
 
 -- =============================================
--- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ
+-- ОСНОВНОЙ ЦИКЛ СКАНИРОВАНИЯ ТРЕЙДА
 -- =============================================
 local function processTradeLogic()
-    local tradeFrame = getStrictTradeFrame()
+    local tradeFrame = getTradeFrame()
     
     if not tradeFrame then
         resultLabel.Text = "⏳ Окно обмена MM2 закрыто или не найдено"
@@ -294,46 +289,34 @@ local function processTradeLogic()
     local myItems = {}
     local theirItems = {}
     local acceptBtn, declineBtn
-    local opponentAccepted = false
 
-    -- Находим центр Окна Обмена для точного деления сторон на мобилках
-    local tradeCenterX = tradeFrame.AbsolutePosition.X + (tradeFrame.AbsoluteSize.X / 2)
-
-    -- Сканируем объекты ИСКЛЮЧИТЕЛЬНО внутри фрейма обмена
+    -- Проходим строго по потомкам окна обмена
     for _, obj in ipairs(tradeFrame:GetDescendants()) do
-        
-        -- 1. Сбор предметов из слотов обмена
         if obj:IsA("TextLabel") and obj.Visible and obj.Text ~= "" then
             local matched = cleanItemName(obj.Text)
             if matched then
+                -- ЖЕСТКАЯ ПРОВЕРКА РОДИТЕЛЯ: Ищем YourSlots или TheirSlots в пути к тексту
                 local fullPath = obj:GetFullName():lower()
                 
-                -- Проверка по названию папки слота
-                if fullPath:find("your") or fullPath:find("my") then
-                    table.insert(myItems, matched)
-                elseif fullPath:find("their") or fullPath:find("other") or fullPath:find("them") then
+                if fullPath:find("their") or fullPath:find("other") or fullPath:find("them") then
                     table.insert(theirItems, matched)
+                elseif fullPath:find("your") or fullPath:find("my") then
+                    table.insert(myItems, matched)
                 else
-                    -- Жесткий фоллбэк: деление по левой/правой стороне фрейма обмена
-                    if obj.AbsolutePosition.X < tradeCenterX then
-                        table.insert(myItems, matched)
-                    else
+                    -- Если пути пустые, проверяем по имени родительских папок на уровень выше
+                    local pName = obj.Parent and obj.Parent.Name:lower() or ""
+                    local gpName = (obj.Parent and obj.Parent.Parent) and obj.Parent.Parent.Name:lower() or ""
+                    
+                    if pName:find("their") or gpName:find("their") then
                         table.insert(theirItems, matched)
+                    else
+                        table.insert(myItems, matched)
                     end
-                end
-            end
-
-            -- Проверяем кнопку согласия оппонента
-            local txtUpper = obj.Text:upper()
-            if txtUpper:find("ACCEPTED") or txtUpper:find("СОГЛАСЕН") then
-                -- Убеждаемся, что это не наш собственный текст статуса
-                if obj:GetFullName():lower():find("their") or obj.AbsolutePosition.X > tradeCenterX then
-                    opponentAccepted = true
                 end
             end
         end
 
-        -- 2. Сбор кнопок управления внутри трейд-окна
+        -- Сбор кнопок управления внутри окна обмена
         if obj:IsA("TextButton") and obj.Visible then
             local name = obj.Name:lower()
             local text = obj.Text:lower()
@@ -342,7 +325,7 @@ local function processTradeLogic()
         end
     end
 
-    -- Считаем стоимость
+    -- Подсчет стоимости предметов
     local myTotal, theirTotal = 0, 0
     local myLines, theirLines = {}, {}
 
@@ -368,7 +351,7 @@ local function processTradeLogic()
         return
     end
 
-    -- Расчет профита
+    -- Проверка выгоды
     local profitValid = false
     local percent = 0
     if myTotal > 0 then
@@ -379,7 +362,7 @@ local function processTradeLogic()
         profitValid = theirTotal > 0
     end
 
-    -- Авто-выполнение действий
+    -- Выполнение действий трейдера
     if traderEnabled then
         if profitValid then
             resultLabel.Text = "✅ Выгодно ("..percent.."%). Жму ACCEPT!"
@@ -413,7 +396,7 @@ local function processTradeLogic()
 end
 
 -- =============================================
--- ЦИКЛ И КЛИКИ МЕНЮ
+-- ПОТОКИ И КНОПКИ ИНТЕРФЕЙСА
 -- =============================================
 task.spawn(function()
     while true do
