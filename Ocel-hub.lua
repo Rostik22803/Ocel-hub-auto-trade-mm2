@@ -1050,28 +1050,46 @@ end
 -- =============================================
 -- ПОИСК ПРЕДМЕТОВ В GUI
 -- =============================================
-local function extractItems(frame)
-    local names = {}
-    if not frame then return names end
-    for _, desc in ipairs(frame:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            local t = desc.Text
-            if t and #t > 2
-               and t ~= "Empty"
-               and not t:match("^%d+$")
-               and not t:lower():match("accept")
-               and not t:lower():match("decline")
-               and not t:lower():match("trade")
-               and not t:lower():match("offer")
-               and not t:lower():match("cancel") then
-                -- Проверяем что предмет есть в нашей таблице (или хотя бы похож)
-                if getItemValue(t) > 0 then
-                    table.insert(names, t)
-                end
-            end
+
+-- Слова которые точно не являются названиями оружий
+local SKIP_WORDS = {
+    "trade","offer","accept","decline","cancel","confirm","yes","no",
+    "empty","item","slot","add","remove","inventory","pending","waiting",
+    "ready","player","mm2","murder","mystery","roblox","robux","coins",
+    "value","price","worth","loading","error","click","drag","here",
+    "your","their","items","knife","gun","pet","godly","ancient","chroma",
+    "legendary","rare","uncommon","common","vintage","unique",
+}
+local SKIP_SET = {}
+for _, w in ipairs(SKIP_WORDS) do SKIP_SET[w] = true end
+
+local function isItemName(text)
+    if not text or #text < 2 or #text > 60 then return false end
+    local lower = text:lower():match("^%s*(.-)%s*$") -- trim
+    if lower == "" then return false end
+    if lower:match("^%d+$") then return false end       -- только цифры
+    if lower:match("^[%p%s]+$") then return false end   -- только символы
+    if SKIP_SET[lower] then return false end
+    return true
+end
+
+-- Дамп ВСЕХ текстов трейд-GUI в консоль — помогает найти точную структуру
+local function dumpTradeGui(root)
+    print("\n===== ДАМП GUI: " .. root.Name .. " =====")
+    local function scan(obj, depth)
+        if depth > 6 then return end
+        local pad = string.rep(".", depth * 2)
+        local info = pad .. obj.ClassName .. " [" .. obj.Name .. "]"
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+            info = info .. ' "' .. obj.Text .. '"'
+        elseif obj:IsA("StringValue") then
+            info = info .. ' val="' .. obj.Value .. '"'
         end
+        print(info)
+        for _, c in ipairs(obj:GetChildren()) do scan(c, depth+1) end
     end
-    return names
+    scan(root, 0)
+    print("===== КОНЕЦ ДАМПА =====\n")
 end
 
 -- =============================================
@@ -1084,56 +1102,69 @@ local function handleTradeGui(tradeGui)
     activeTradeGuis[tradeGui] = true
 
     print("[Trader] Трейд-окно: " .. tradeGui.Name)
-    task.wait(3) -- ждём заполнения предметов
+    task.wait(3)
 
-    if not traderEnabled then
-        print("[Trader] Автотрейд выключен — только отладка")
-        -- Автоклик не делаем, но отладку показываем дальше
-    end
+    -- Дамп структуры чтобы понять где лежат предметы
+    dumpTradeGui(tradeGui)
 
-    -- Ищем все TextLabel с предметами
-    local allLabels = {}
-    for _, desc in ipairs(tradeGui:GetDescendants()) do
-        if desc:IsA("TextLabel") and getItemValue(desc.Text) > 0 then
-            table.insert(allLabels, desc)
-        end
-    end
-
-    -- Разделяем на "мои" и "их" по позиции X на экране (левая / правая половина)
+    local screenW = workspace.CurrentCamera.ViewportSize.X
     local myItems, theirItems = {}, {}
-    local screenWidth = workspace.CurrentCamera.ViewportSize.X
 
-    for _, label in ipairs(allLabels) do
-        local absX = label.AbsolutePosition.X
-        if absX < screenWidth / 2 then
-            table.insert(myItems, label.Text)
-        else
-            table.insert(theirItems, label.Text)
-        end
-    end
-
-    -- Если разделение по X не дало результата — делим по порядку
-    if #myItems == 0 and #theirItems == 0 then
-        -- Попробуем просто все фреймы
-        local frames = {}
-        for _, child in ipairs(tradeGui:GetChildren()) do
-            if child:IsA("Frame") or child:IsA("ScrollingFrame") then
-                table.insert(frames, child)
+    -- Шаг 1: собираем ВСЕ TextLabel и StringValue без фильтра по таблице
+    local allFound = {}
+    for _, desc in ipairs(tradeGui:GetDescendants()) do
+        local text = nil
+        local posX = 0
+        if desc:IsA("TextLabel") then
+            text = desc.Text
+            posX = desc.AbsolutePosition.X
+        elseif desc:IsA("StringValue") then
+            text = desc.Value
+            -- позиция через родителя
+            local p = desc.Parent
+            if p and p:IsA("GuiObject") then
+                posX = p.AbsolutePosition.X
             end
         end
-        if #frames >= 2 then
-            myItems    = extractItems(frames[1])
-            theirItems = extractItems(frames[2])
+
+        if text and isItemName(text) then
+            table.insert(allFound, {text = text, posX = posX, obj = desc})
         end
     end
 
-    print("[Trader] Мои: "    .. (#myItems    > 0 and table.concat(myItems,    ", ") or "пусто"))
-    print("[Trader] Их: "     .. (#theirItems > 0 and table.concat(theirItems, ", ") or "пусто"))
+    -- Шаг 2: разделяем по X-позиции
+    for _, entry in ipairs(allFound) do
+        if entry.posX > 0 and entry.posX < screenW / 2 then
+            table.insert(myItems, entry.text)
+        elseif entry.posX >= screenW / 2 then
+            table.insert(theirItems, entry.text)
+        else
+            -- X=0 или неизвестно — смотрим на имя родителя
+            local parentName = ""
+            if entry.obj.Parent then parentName = entry.obj.Parent.Name:lower() end
+            if parentName:find("my") or parentName:find("local") or parentName:find("left") or parentName:find("p1") then
+                table.insert(myItems, entry.text)
+            else
+                table.insert(theirItems, entry.text)
+            end
+        end
+    end
 
-    -- Обновляем панель отладки
+    -- Шаг 3: если ничего не нашли — показываем всё что есть как "неизвестно"
+    if #myItems == 0 and #theirItems == 0 and #allFound > 0 then
+        print("[Trader] Не удалось разделить предметы по сторонам, показываем всё")
+        for _, entry in ipairs(allFound) do
+            table.insert(theirItems, entry.text)
+        end
+    end
+
+    print("[Trader] Мои (" .. #myItems .. "): " .. (#myItems > 0 and table.concat(myItems, ", ") or "—"))
+    print("[Trader] Их ("  .. #theirItems .. "): " .. (#theirItems > 0 and table.concat(theirItems, ", ") or "—"))
+
+    -- Обновляем панель отладки ВСЕГДА
     updateDebugPanel(myItems, theirItems)
 
-    -- Ищем кнопки
+    -- Ищем кнопки Accept / Decline
     local acceptBtn, declineBtn
     for _, desc in ipairs(tradeGui:GetDescendants()) do
         if desc:IsA("TextButton") then
@@ -1147,10 +1178,9 @@ local function handleTradeGui(tradeGui)
         end
     end
 
-    print("[Trader] Accept кнопка: " .. (acceptBtn  and acceptBtn.Name  or "не найдена"))
-    print("[Trader] Decline кнопка: " .. (declineBtn and declineBtn.Name or "не найдена"))
+    print("[Trader] Accept: "  .. (acceptBtn  and acceptBtn.Name  or "не найдена"))
+    print("[Trader] Decline: " .. (declineBtn and declineBtn.Name or "не найдена"))
 
-    -- Кликаем только если автотрейд включён
     if traderEnabled then
         if isProfitable(myItems, theirItems) then
             print("[Trader] ✅ ПРИНИМАЕМ")
@@ -1160,12 +1190,11 @@ local function handleTradeGui(tradeGui)
             clickButton(declineBtn)
         end
     else
-        print("[Trader] Автотрейд выключен — решение только в отладке, без клика")
+        print("[Trader] Автотрейд выключен — клика нет")
     end
 
     task.wait(2)
     activeTradeGuis[tradeGui] = nil
-    -- Не скрываем панель автоматически — игрок видит результат сам
 end
 
 -- =============================================
@@ -1182,14 +1211,8 @@ end
 
 -- Слушаем новые
 PlayerGui.ChildAdded:Connect(function(child)
+    print("[DEBUG] Новый GUI: " .. child.Name)
     if child.Name:lower():find("trade") then
         task.spawn(handleTradeGui, child)
     end
-end)
-
--- =============================================
--- ДЕБАГ: логируем ВСЕ новые GUI для поиска имени трейда
--- =============================================
-PlayerGui.ChildAdded:Connect(function(child)
-    print("[DEBUG] Новый GUI: " .. child.Name)
 end)
