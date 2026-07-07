@@ -1,5 +1,5 @@
 -- =============================================
--- MM2 Auto Trader v3.0 (SUPER ISOLATION FIX)
+-- MM2 Auto Trader v3.5 (WAIT FOR PLAYER ACCEPT)
 -- =============================================
 
 local Players           = game:GetService("Players")
@@ -12,7 +12,6 @@ local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
 -- НАСТРОЙКИ
 -- =============================================
 local MIN_PROFIT_PERCENT  = 5       -- % прибыли для принятия трейда
-local AUTO_DECLINE_UNKNOWN = false  -- отклонять трейды, если есть неизвестные пушки (выключено для безопасности)
 local traderEnabled       = false   -- включён ли автотрейд
 
 -- =============================================
@@ -78,13 +77,13 @@ local ItemValues = {
 }
 
 -- =============================================
--- СОЗДАНИЕ ИНТЕРФЕЙСА (ПОВЕРХ ВСЕХ ОКЕН)
+-- СОЗДАНИЕ ИНТЕРФЕЙСА (DISPLAY ORDER ПОМАКСИМУМУ)
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MM2TraderUI"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.DisplayOrder = 999999 -- Гарантирует отображение ПОВЕРХ трейд-меню игры
+screenGui.DisplayOrder = 999999
 screenGui.Parent = PlayerGui
 
 local mainFrame = Instance.new("Frame")
@@ -98,16 +97,16 @@ mainFrame.Draggable = true
 mainFrame.Parent = screenGui
 
 local corner = Instance.new("UICorner") corner.CornerRadius = UDim.new(0, 10) corner.Parent = mainFrame
-local stroke = Instance.new("UIStroke") stroke.Color = Color3.fromRGB(255, 60, 60) stroke.Thickness = 2 stroke.Parent = mainFrame
+local stroke = Instance.new("UIStroke") stroke.Color = Color3.fromRGB(0, 180, 255) stroke.Thickness = 2 stroke.Parent = mainFrame
 
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 36)
-titleBar.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
+titleBar.BackgroundColor3 = Color3.fromRGB(0, 120, 220)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v3.0"
+titleLabel.Text = "MM2 Auto Trader v3.5"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -141,10 +140,10 @@ toggleBtn.Parent = mainFrame
 local btnCorner = Instance.new("UICorner") btnCorner.CornerRadius = UDim.new(0, 6) btnCorner.Parent = toggleBtn
 
 local scanBtn = Instance.new("TextButton")
-scanBtn.Text = "🔄 СКАНИРОВАТЬ ТРЕЙД НАПРЯМУЮ"
+scanBtn.Text = "🔄 РУЧНОЙ СКАН ТРЕЙДА"
 scanBtn.Size = UDim2.new(1, -20, 0, 36)
 scanBtn.Position = UDim2.new(0, 10, 0, 114)
-scanBtn.BackgroundColor3 = Color3.fromRGB(240, 140, 20)
+scanBtn.BackgroundColor3 = Color3.fromRGB(100, 60, 180)
 scanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 scanBtn.TextSize = 12
 scanBtn.Font = Enum.Font.GothamBold
@@ -195,7 +194,7 @@ debugToggleBtn.Parent = mainFrame
 local dbc = Instance.new("UICorner") dbc.CornerRadius = UDim.new(0,6) dbc.Parent = debugToggleBtn
 
 -- =============================================
--- ПАНЕЛЬ ОТЛАДКИ (ПОД ТРЕЙД)
+-- ПАНЕЛЬ ОТЛАДКИ (ИНФОРМАЦИОННАЯ)
 -- =============================================
 local debugFrame = Instance.new("Frame")
 debugFrame.Name = "DebugFrame"
@@ -208,12 +207,12 @@ debugFrame.Draggable = true
 debugFrame.Visible = false
 debugFrame.Parent = screenGui
 local dbCorner = Instance.new("UICorner") dbCorner.CornerRadius = UDim.new(0, 10) dbCorner.Parent = debugFrame
-local dbStroke = Instance.new("UIStroke") dbStroke.Color = Color3.fromRGB(255, 100, 100) dbStroke.Thickness = 2 dbStroke.Parent = debugFrame
+local dbStroke = Instance.new("UIStroke") dbStroke.Color = Color3.fromRGB(0, 180, 255) dbStroke.Thickness = 2 dbStroke.Parent = debugFrame
 
 local dbTitleLabel = Instance.new("TextLabel")
-dbTitleLabel.Text = "📊 Точный мониторинг слотов обмена"
+dbTitleLabel.Text = "📊 Анализ слотов обмена"
 dbTitleLabel.Size = UDim2.new(1, 0, 0, 32)
-dbTitleLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+dbTitleLabel.BackgroundColor3 = Color3.fromRGB(35, 45, 60)
 dbTitleLabel.TextColor3 = Color3.fromRGB(225, 225, 255)
 dbTitleLabel.TextSize = 13
 dbTitleLabel.Font = Enum.Font.GothamBold
@@ -272,7 +271,7 @@ theirTotalLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
 theirTotalLabel.Parent = theirCol
 
 local resultLabel = Instance.new("TextLabel")
-resultLabel.Text = "Откройте окно обмена для проверки сделки"
+resultLabel.Text = "Ожидание действий другого игрока..."
 resultLabel.Size = UDim2.new(1, -12, 0, 24)
 resultLabel.Position = UDim2.new(0, 6, 1, -28)
 resultLabel.BackgroundTransparency = 1
@@ -281,7 +280,7 @@ resultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
 resultLabel.Parent = debugFrame
 
 -- =============================================
--- ИЗОЛИРОВАННЫЙ АЛГОРИТМ СБОРА ВЕЩЕЙ ИЗ СЛОТОВ
+-- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 -- =============================================
 local function getCleanName(text)
     if not text or type(text) ~= "string" or text == "" then return nil end
@@ -300,14 +299,12 @@ local function scanContainer(container)
     local items = {}
     if not container then return items end
     
-    -- Ищем только внутри контейнеров сетки предметов, игнорируя остальной UI игры
     for _, slot in ipairs(container:GetDescendants()) do
         if slot:IsA("TextLabel") or slot:IsA("StringValue") then
             local text = slot:IsA("TextLabel") and slot.Text or slot.Value
             local matchedName = getCleanName(text)
             
             if matchedName then
-                -- Дополнительная проверка на количество предметов (x2, x3...)
                 local count = 1
                 local slotParent = slot.Parent
                 if slotParent then
@@ -326,11 +323,37 @@ local function scanContainer(container)
     return items
 end
 
--- Основная функция поиска и парсинга
+-- Проверка: нажал ли второй игрок кнопку Accept?
+local function isOpponentReady(mainTradeGui)
+    -- В MM2 статус согласия обычно виден по цвету рамки или тексту кнопки оппонента
+    local theirStatus = mainTradeGui:FindFirstChild("TheirStatus") or mainTradeGui:FindFirstChild("TheirOffer")
+    if theirStatus then
+        -- Проверка на наличие зеленой индикации или текста "Accepted"
+        for _, child in ipairs(theirStatus:GetDescendants()) do
+            if child:IsA("TextLabel") and (child.Text:lower():find("accepted") or child.Text:lower():find("ready")) then
+                return true
+            end
+            if child:IsA("Frame") and (child.BackgroundColor3 == Color3.fromRGB(0, 255, 0) or child.Name:lower():find("green")) then
+                return true
+            end
+        end
+    end
+    
+    -- Запасной вариант: ищем общую кнопку подтверждения оппонента
+    local theirAccept = mainTradeGui:FindFirstChild("TheirAccept") or mainTradeGui:FindFirstChild("RightAccept")
+    if theirAccept and theirAccept:IsA("GuiObject") and theirAccept.Visible == true then
+        return true
+    end
+
+    return false
+end
+
+-- =============================================
+-- ОСНОВНОЙ ОДНОРАЗОВЫЙ АЛГОРИТМ ПРИНЯТИЯ РЕШЕНИЯ
+-- =============================================
 local function forceScanTrade()
     local mainTradeGui = nil
     
-    -- Ищем реальное торговое окно по структуре MM2
     for _, gui in ipairs(PlayerGui:GetChildren()) do
         if gui:IsA("ScreenGui") and (gui.Name:lower():find("trade") or gui:FindFirstChild("MainFrame")) then
             if gui:FindFirstChild("MainFrame") and (gui.MainFrame:FindFirstChild("MyOffer") or gui.MainFrame:FindFirstChild("TheirOffer")) then
@@ -341,29 +364,17 @@ local function forceScanTrade()
     end
 
     if not mainTradeGui then
-        -- Попытка найти на случай измененных названий
-        for _, gui in ipairs(PlayerGui:GetDescendants()) do
-            if gui.Name == "MyOffer" or gui.Name == "TheirOffer" then
-                mainTradeGui = gui.Parent
-                break
-            end
-        end
-    end
-
-    if not mainTradeGui then
-        resultLabel.Text = "⚠️ Трейд-интерфейс MM2 не обнаружен"
-        resultLabel.TextColor3 = Color3.fromRGB(240, 140, 20)
+        resultLabel.Text = "⏳ Окно обмена MM2 закрыто или не найдено"
+        resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         return
     end
 
-    -- Прямое сканирование изолированных окон предложений
-    local myOfferBox = mainTradeGui:FindFirstChild("MyOffer") or mainTradeGui:FindFirstChild("YourOffer") or mainTradeGui:FindFirstChild("Left")
-    local theirOfferBox = mainTradeGui:FindFirstChild("TheirOffer") or mainTradeGui:FindFirstChild("TheirOffer") or mainTradeGui:FindFirstChild("Right")
+    local myOfferBox = mainTradeGui:FindFirstChild("MyOffer") or mainTradeGui:FindFirstChild("YourOffer")
+    local theirOfferBox = mainTradeGui:FindFirstChild("TheirOffer")
 
     local myItems = scanContainer(myOfferBox)
     local theirItems = scanContainer(theirOfferBox)
 
-    -- Расчет стоимости
     local myTotal, theirTotal = 0, 0
     local myDisplay, theirDisplay = {}, {}
 
@@ -379,13 +390,12 @@ local function forceScanTrade()
         table.insert(theirDisplay, name .. " [" .. price .. "]")
     end
 
-    -- Вывод на панель отладки
     myItemsLabel.Text = #myDisplay > 0 and table.concat(myDisplay, "\n") or "Пусто"
     theirItemsLabel.Text = #theirDisplay > 0 and table.concat(theirDisplay, "\n") or "Пусто"
     myTotalLabel.Text = "Ты даешь: " .. myTotal
     theirTotalLabel.Text = "Тебе дают: " .. theirTotal
 
-    -- Поиск кнопок управления внутри этого конкретного интерфейса
+    -- Ищем кнопки действий
     local acceptBtn, declineBtn
     for _, obj in ipairs(mainTradeGui:GetDescendants()) do
         if obj:IsA("TextButton") then
@@ -401,34 +411,36 @@ local function forceScanTrade()
 
     if myTotal == 0 and theirTotal == 0 then
         resultLabel.Text = "Окна обмена пусты"
-        resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        resultLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
         return
     end
 
+    -- Рассчитываем выгоду для отображения в UI
     local actionAccept = false
+    local percent = 0
     if myTotal > 0 then
         local diff = theirTotal - myTotal
-        local percent = math.floor((diff / myTotal) * 100)
+        percent = math.floor((diff / myTotal) * 100)
         actionAccept = percent >= MIN_PROFIT_PERCENT
-        
-        if actionAccept then
-            resultLabel.Text = string.format("✅ ВЫГОДНО: Принять (+%d%%)", percent)
-            resultLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
-        else
-            resultLabel.Text = string.format("❌ НЕВЫГОДНО: Отклонить (%d%%)", percent)
-            resultLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-        end
     else
         actionAccept = theirTotal > 0
-        resultLabel.Text = "✅ ВЫГОДНО: Бесплатный подарок!"
-        resultLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
     end
 
-    -- Авто-выполнение действий кнопками
+    -- Проверяем, нажал ли другой игрок кнопку готовности
+    local opponentReady = isOpponentReady(mainTradeGui)
+
+    if not opponentReady then
+        resultLabel.Text = "⏳ Ожидание согласия второго игрока..."
+        resultLabel.TextColor3 = Color3.fromRGB(240, 160, 20)
+        return -- ОСТАНАВЛИВАЕМ СКРИПТ, ничего не нажимаем!
+    end
+
+    -- Ели игрок ГОТОВ, принимаем окончательное решение:
     if traderEnabled then
         if actionAccept then
+            resultLabel.Text = "✅ ВЫГОДНО! Авто-принятие..."
+            resultLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
             if acceptBtn then
-                acceptBtn.ZIndex = 99999
                 acceptBtn.MouseButton1Click:Fire()
                 pcall(function()
                     local VIM = game:GetService("VirtualInputManager")
@@ -439,20 +451,30 @@ local function forceScanTrade()
                 end)
             end
         else
+            resultLabel.Text = "❌ НЕВЫГОДНО! Авто-отклонение..."
+            resultLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
             if declineBtn then
-                declineBtn.ZIndex = 99999
                 declineBtn.MouseButton1Click:Fire()
             end
+        end
+    else
+        -- Если автотрейд выключен, просто пишем подсказку на экране отладки
+        if actionAccept then
+            resultLabel.Text = string.format("Рекомендация: ПРИНЯТЬ (+%d%%)", percent)
+            resultLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        else
+            resultLabel.Text = string.format("Рекомендация: ОТКЛОНИТЬ (%d%%)", percent)
+            resultLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
         end
     end
 end
 
 -- =============================================
--- ЦИКЛЫ ОБНОВЛЕНИЯ И КНОПКИ УПРАВЛЕНИЯ
+-- ПОТОКИ ОБНОВЛЕНИЙ
 -- =============================================
 task.spawn(function()
     while true do
-        task.wait(0.5) -- Быстрое авто-сканирование
+        task.wait(0.3) -- Частое сканирование изменений статуса
         pcall(forceScanTrade)
     end
 end)
