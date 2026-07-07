@@ -1,5 +1,5 @@
 -- =============================================
--- MM2 Auto Trader v2.6 (FIXED MENU & LOGIC)
+-- MM2 Auto Trader v2.7 (ANTI-BUG & VALUES FIX)
 -- =============================================
 
 local Players           = game:GetService("Players")
@@ -13,11 +13,11 @@ local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
 -- НАСТРОЙКИ
 -- =============================================
 local MIN_PROFIT_PERCENT  = 5       -- % прибыли для принятия трейда
-local AUTO_DECLINE_UNKNOWN = true   -- отклонять трейды с неизвестными предметами
-local traderEnabled       = false   -- включён ли автотрейд (управляется из меню)
+local AUTO_DECLINE_UNKNOWN = true   -- отклонять трейды, если есть неизвестные пушки
+local traderEnabled       = false   -- включён ли автотрейд
 
 -- =============================================
--- ПОЛНАЯ ТАБЛИЦА ЦЕН MM2 (game.guide, July 2026)
+-- ТАБЛИЦА ЦЕН MM2
 -- =============================================
 local ItemValues = {
     -- ===== ANCIENTS =====
@@ -81,13 +81,6 @@ local ItemValues = {
     ["Chroma Slasher"]          = 39,
     ["Chroma Laser"]            = 44,
     ["Chroma Cookiecane"]       = 38,
-    ["Chroma Fire Cat"]         = 4,
-    ["Chroma Fire Bat"]         = 4,
-    ["Chroma Fire Bear"]        = 4,
-    ["Chroma Fire Dog"]         = 4,
-    ["Chroma Fire Fox"]         = 4,
-    ["Chroma Fire Pig"]         = 4,
-    ["Chroma Fire Bunny"]       = 4,
 
     -- ===== GODLYS =====
     ["Traveler's Gun"]          = 4900,
@@ -184,38 +177,13 @@ local ItemValues = {
     ["Eternal IV"]              = 10,
     ["Bioblade"]                = 10,
     ["Frostsaber"]              = 10,
-    ["Eternal III"]             = 10,
-    ["Saw"]                     = 8,
-    ["Boneblade"]               = 8,
-    ["Frostbite"]               = 7,
-    ["Ghostblade"]              = 7,
-    ["Ice Dragon"]              = 7,
-    ["Prismatic"]               = 6,
-    ["Winter's Edge"]           = 6,
-    ["Flames"]                  = 6,
-    ["Hallow's Edge"]           = 9,
-    ["Hallow's Blade"]          = 8,
-    ["Xmas"]                    = 9,
-    ["Eternal"]                 = 9,
-    ["Handsaw"]                 = 9,
-    ["Ice Shard"]               = 8,
-    ["Eternal II"]              = 8,
-    ["Pumpking"]                = 8,
-    ["Eggblade"]                = 5,
-    ["Peppermint"]              = 4,
-    ["Cookieblade"]             = 4,
-    ["Red Seer"]                = 3,
-    ["Purple Seer"]             = 3,
-    ["Blue Seer"]               = 3,
-    ["Orange Seer"]             = 2,
-    ["Yellow Seer"]             = 2,
-    ["Seer"]                    = 3,
+    ["Darksword"]               = 1500,
     ["Pearl"]                   = 98,
     ["Pearlshine"]              = 103,
 }
 
 -- =============================================
--- СОЗДАНИЕ ИНТЕРФЕЙСА (ВЫНЕСЕНО В НАЧАЛО)
+-- СОЗДАНИЕ ИНТЕРФЕЙСА
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MM2TraderUI"
@@ -243,7 +211,7 @@ titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v2.6"
+titleLabel.Text = "MM2 Auto Trader v2.7"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -413,12 +381,19 @@ debugToggleBtn.Parent = mainFrame
 local dbc = Instance.new("UICorner") dbc.CornerRadius = UDim.new(0,7) dbc.Parent = debugToggleBtn
 
 -- =============================================
--- ВСПОМОГАТЕЛЬНАЯ ЛОГИКА И СКАНИРОВАНИЕ ВЕЩЕЙ
+-- ЗАЩИЩЕННАЯ СИСТЕМА ПРОВЕРКИ ИМЕН И ЦЕН
 -- =============================================
 local function getItemRealName(text)
-    if not text or text == "" then return nil end
-    local clean = text:match("^%s*(.-)%s*$")
+    if not text or type(text) ~= "string" or text == "" then return nil end
+    local clean = text:match("^%s*(.-)%s*$") -- Чистим пробелы
+    
+    if clean == "" or tonumber(clean) then return nil end -- Отсекаем чистые цифры и пустоту
+    if clean:lower() == "accept" or clean:lower() == "decline" then return nil end
+
+    -- Проверка на точное совпадение
     if ItemValues[clean] then return clean end
+    
+    -- Проверка регистра
     for k, v in pairs(ItemValues) do
         if k:lower() == clean:lower() then return k end
     end
@@ -426,19 +401,26 @@ local function getItemRealName(text)
 end
 
 local function getItemValue(name)
-    local realName = getItemRealName(name)
-    if realName then return ItemValues[realName] end
-    return 0
+    if not name then return 0 end
+    return ItemValues[name] or 0
 end
 
 local function calcTotal(items)
-    local total, unknown = 0, {}
+    local total = 0
+    local unknownCount = 0
+    local list = {}
+    
     for _, name in ipairs(items) do
         local val = getItemValue(name)
-        if val == 0 then table.insert(unknown, name) end
-        total = total + val
+        if val > 0 then
+            total = total + val
+            table.insert(list, name .. " (" .. val .. ")")
+        else
+            unknownCount = unknownCount + 1
+            table.insert(list, "❓ " .. name .. " (Нет в базе)")
+        end
     end
-    return total, unknown
+    return total, unknownCount, list
 end
 
 local function smartGetItems(tradeGui)
@@ -451,6 +433,11 @@ local function smartGetItems(tradeGui)
             local realName = getItemRealName(text)
             
             if realName then
+                -- Фикс фантомного подбора Nik's Scythe из пустых строк
+                if realName == "Nik's Scythe" and not text:lower():find("nik") then
+                    continue
+                end
+
                 local amount = 1
                 local parent = obj.Parent
                 if parent then
@@ -495,15 +482,15 @@ local function clickButton(btn)
 end
 
 -- =============================================
--- КОРРЕКТНЫЙ ОБРАБОТЧИК ТРЕЙДА
+-- ОБРАБОТЧИК С КОРРЕКТНЫМ РАСЧЕТОМ
 -- =============================================
 local function handleTradeGui(tradeGui)
     local myItems, theirItems = smartGetItems(tradeGui)
-    local myVal, myUnk = calcTotal(myItems)
-    local theirVal, theirUnk = calcTotal(theirItems)
+    local myVal, myUnkCount, myTextList = calcTotal(myItems)
+    local theirVal, theirUnkCount, theirTextList = calcTotal(theirItems)
     
-    myItemsLabel.Text = #myItems > 0 and table.concat(myItems, "\n") or "пусто"
-    theirItemsLabel.Text = #theirItems > 0 and table.concat(theirItems, "\n") or "пусто"
+    myItemsLabel.Text = #myTextList > 0 and table.concat(myTextList, "\n") or "пусто"
+    theirItemsLabel.Text = #theirTextList > 0 and table.concat(theirTextList, "\n") or "пусто"
     myTotalLabel.Text = "Итого: " .. myVal
     theirTotalLabel.Text = "Итого: " .. theirVal
 
@@ -521,7 +508,8 @@ local function handleTradeGui(tradeGui)
     end
 
     if myVal == 0 and theirVal == 0 then
-        resultLabel.Text = "Трейд пуст или предметы не найдены"
+        resultLabel.Text = "Ждем добавления оружия..."
+        resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         return
     end
 
@@ -539,22 +527,26 @@ local function handleTradeGui(tradeGui)
             resultLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
         end
     else
-        isProfitable = theirVal > 0 -- Если мы ничего не отдаем, а нам дают — это выгодно
-        resultLabel.Text = "✅ ПРИНЯТЬ (Бесплатный гифт)"
+        isProfitable = theirVal > 0
+        resultLabel.Text = "✅ ПРИНЯТЬ (Бесплатный подарок)"
         resultLabel.TextColor3 = Color3.fromRGB(80, 220, 80)
     end
 
     if traderEnabled then
-        if AUTO_DECLINE_UNKNOWN and (#myUnk > 0 or #theirUnk > 0) then
+        -- Если включен авто-отклон при неизвестных предметах
+        if AUTO_DECLINE_UNKNOWN and (myUnkCount > 0 or theirUnkCount > 0) then
+            resultLabel.Text = "❌ ОТКЛОНЕНО: Есть неизвестные вещи"
+            resultLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
             clickButton(declineBtn)
             return
         end
+        
         if isProfitable then clickButton(acceptBtn) else clickButton(declineBtn) end
     end
 end
 
 -- =============================================
--- МОНИТОРИНГ И КНОПКИ
+-- СЛУШАТЕЛИ GUI
 -- =============================================
 local function isTradeGui(gui)
     local name = gui.Name:lower()
@@ -576,7 +568,7 @@ task.spawn(function()
     end
 end)
 
--- Назначение функций на кнопки
+-- Логика кнопок
 minusBtn.MouseButton1Click:Connect(function()
     if MIN_PROFIT_PERCENT > 1 then
         MIN_PROFIT_PERCENT = MIN_PROFIT_PERCENT - 1
@@ -609,4 +601,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-print("[Trader] Успешно загружен! Меню должно отображаться.")
+print("[Trader] Исправленный скрипт успешно загружен!")
