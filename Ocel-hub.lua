@@ -1,5 +1,5 @@
 -- =============================================
--- MM2 Auto Trader v2.5 (FIXED & IMPROVED)
+-- MM2 Auto Trader v2.6 (FIXED MENU & LOGIC)
 -- =============================================
 
 local Players           = game:GetService("Players")
@@ -212,85 +212,10 @@ local ItemValues = {
     ["Seer"]                    = 3,
     ["Pearl"]                   = 98,
     ["Pearlshine"]              = 103,
-
-    -- ===== LEGENDARIES =====
-    ["Flowerwood Knife"]        = 255,
-    ["Bones Gun"]               = 245,
-    ["Latte (Knife)"]           = 200,
-    ["Latte (Gun)"]             = 200,
-    ["Spectral (Knife)"]        = 90,
-    ["Traveler (Gun)"]          = 90,
-    ["Swirlyaxe"]               = 43,
-    ["Cotton Candy"]            = 40,
-    ["JD"]                      = 35,
-    ["Beach"]                   = 33,
-    ["Vampire (Gun)"]           = 48,
-    ["Aurora (Gun)"]            = 44,
-    ["Arctic (Gun)"]            = 11,
-    ["Aurora (Knife)"]          = 9,
-    ["Cavern (Knife)"]          = 9,
-    ["Glitch 1"]                = 70,
-    ["Glitch 2"]                = 40,
-    ["Blue Pumpkin"]            = 185,
-    ["Red Pumpkin"]             = 120,
-    ["Green Pumpkin"]           = 70,
-    ["Icedriller"]              = 6,
-    ["Broken"]                  = 7,
-    ["Skulls"]                  = 4,
-    ["Blue Elite"]              = 4,
-    ["Green Elite"]             = 4,
-    ["Red Scratch"]             = 4,
-    ["Witched"]                 = 4,
-    ["Ripper (Knife)"]          = 4,
-    ["Ripper (Gun)"]            = 3,
-    ["Santa's Spirit"]          = 4,
-    ["Santa's Magic"]           = 4,
-    ["Ginger (Gun)"]            = 4,
-    ["Ginger (Knife)"]          = 2,
-    ["Spectral (Gun)"]          = 4,
-    ["Splash (Gun)"]            = 3,
-    ["Splash (Knife)"]          = 0,
-    ["Bunnies"]                 = 3,
-    ["Nightsky"]                = 3,
-    ["Blue Scratch"]            = 3,
-    ["Chromatic (Gun)"]         = 3,
-    ["Chromatic (Knife)"]       = 3,
-    ["Arctic (Knife)"]          = 3,
-    ["Vampire (Knife)"]         = 3,
-    ["Traveler (Knife)"]        = 3,
-    ["Ghost (Knife)"]           = 5,
-    ["Ghost (Gun)"]             = 2,
-    ["Icecracker"]              = 2,
-    ["Frostfade (Knife)"]       = 2,
-    ["Energized (Gun)"]         = 2,
-    ["Red Fire"]                = 2,
-    ["Cupid"]                   = 1,
-    ["Cavern (Gun)"]            = 1,
 }
 
--- Вспомогательные функции для работы с базой цен
-local function getItemRealName(text)
-    if not text or text == "" then return nil end
-    local clean = text:match("^%s*(.-)%s*$") -- убираем пробелы
-    if ItemValues[clean] then return clean end
-    
-    -- Поиск без учета регистра
-    for k, v in pairs(ItemValues) do
-        if k:lower() == clean:lower() then
-            return k
-        end
-    end
-    return nil
-end
-
-local function getItemValue(name)
-    local realName = getItemRealName(name)
-    if realName then return ItemValues[realName] end
-    return 0
-end
-
 -- =============================================
--- GUI МЕНЮ
+-- СОЗДАНИЕ ИНТЕРФЕЙСА (ВЫНЕСЕНО В НАЧАЛО)
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MM2TraderUI"
@@ -318,7 +243,7 @@ titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Auto Trader v2.5"
+titleLabel.Text = "MM2 Auto Trader v2.6"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -385,7 +310,7 @@ plusBtn.Parent = mainFrame
 local pc = Instance.new("UICorner") pc.CornerRadius = UDim.new(0,6) pc.Parent = plusBtn
 
 -- =============================================
--- ПАНЕЛЬ ОТЛАДКИ (ИНТЕРФЕЙС АНАЛИЗА)
+-- ПАНЕЛЬ ОТЛАДКИ
 -- =============================================
 local debugScreenGui = Instance.new("ScreenGui")
 debugScreenGui.Name = "MM2TraderDebug"
@@ -487,49 +412,45 @@ debugToggleBtn.BorderSizePixel = 0
 debugToggleBtn.Parent = mainFrame
 local dbc = Instance.new("UICorner") dbc.CornerRadius = UDim.new(0,7) dbc.Parent = debugToggleBtn
 
-debugToggleBtn.MouseButton1Click:Connect(function()
-    debugFrame.Visible = not debugFrame.Visible
-    debugToggleBtn.Text = debugFrame.Visible and "🔍 Скрыть отладку" or "🔍 Показать отладку"
-end)
-
 -- =============================================
--- УМНАЯ КЛИК-ФУНКЦИЯ (ФИКС СБОЕВ КЛИКОВ)
+-- ВСПОМОГАТЕЛЬНАЯ ЛОГИКА И СКАНИРОВАНИЕ ВЕЩЕЙ
 -- =============================================
-local function clickButton(btn)
-    if not btn then return end
-    
-    -- Выводим кнопку на передний план, чтобы избежать перекрытия GUI игры
-    local oldZIndex = btn.ZIndex
-    btn.ZIndex = 9999
-    
-    btn.MouseButton1Click:Fire()
-    
-    local ok, VIM = pcall(function() return game:GetService("VirtualInputManager") end)
-    if ok and VIM then
-        local pos = btn.AbsolutePosition + btn.AbsoluteSize / 2
-        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
-        task.wait(0.02)
-        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+local function getItemRealName(text)
+    if not text or text == "" then return nil end
+    local clean = text:match("^%s*(.-)%s*$")
+    if ItemValues[clean] then return clean end
+    for k, v in pairs(ItemValues) do
+        if k:lower() == clean:lower() then return k end
     end
-    
-    btn.ZIndex = oldZIndex
+    return nil
 end
 
--- =============================================
--- УМНЫЙ СБОР ПРЕДМЕТОВ ИЗ ОКНА ОБМЕНА
--- =============================================
+local function getItemValue(name)
+    local realName = getItemRealName(name)
+    if realName then return ItemValues[realName] end
+    return 0
+end
+
+local function calcTotal(items)
+    local total, unknown = 0, {}
+    for _, name in ipairs(items) do
+        local val = getItemValue(name)
+        if val == 0 then table.insert(unknown, name) end
+        total = total + val
+    end
+    return total, unknown
+end
+
 local function smartGetItems(tradeGui)
     local myItems, theirItems = {}, {}
     local screenW = workspace.CurrentCamera.ViewportSize.X
 
-    -- Ищем элементы интерфейса, отвечающие за сетку предметов в MM2
     for _, obj in ipairs(tradeGui:GetDescendants()) do
         if obj:IsA("TextLabel") or obj:IsA("StringValue") then
             local text = obj:IsA("TextLabel") and obj.Text or obj.Value
             local realName = getItemRealName(text)
             
             if realName then
-                -- Пытаемся найти количество предметов (ищем TextLabel рядом с текстом "x2", "x5" и т.д.)
                 local amount = 1
                 local parent = obj.Parent
                 if parent then
@@ -540,7 +461,6 @@ local function smartGetItems(tradeGui)
                     end
                 end
 
-                -- Определяем сторону (твоя или чужая)
                 local posX = 0
                 if obj:IsA("TextLabel") then posX = obj.AbsolutePosition.X else 
                     if parent and parent:IsA("GuiObject") then posX = parent.AbsolutePosition.X end
@@ -550,11 +470,7 @@ local function smartGetItems(tradeGui)
                 local isMine = pName:find("my") or pName:find("local") or pName:find("left") or (posX > 0 and posX < screenW / 2)
 
                 for i = 1, amount do
-                    if isMine then
-                        table.insert(myItems, realName)
-                    else
-                        table.insert(theirItems, realName)
-                    end
+                    if isMine then table.insert(myItems, realName) else table.insert(theirItems, realName) end
                 end
             end
         end
@@ -562,33 +478,35 @@ local function smartGetItems(tradeGui)
     return myItems, theirItems
 end
 
-local function calcTotal(items)
-    local total, unknown = 0, {}
-    for _, name do
-        local val = getItemValue(name)
-        if val == 0 then table.insert(unknown, name) end
-        total = total + val
+local function clickButton(btn)
+    if not btn then return end
+    local oldZIndex = btn.ZIndex
+    btn.ZIndex = 9999
+    btn.MouseButton1Click:Fire()
+    
+    local ok, VIM = pcall(function() return game:GetService("VirtualInputManager") end)
+    if ok and VIM then
+        local pos = btn.AbsolutePosition + btn.AbsoluteSize / 2
+        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
+        task.wait(0.02)
+        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
     end
-    return total, unknown
+    btn.ZIndex = oldZIndex
 end
 
 -- =============================================
--- ОБРАБОТЧИК ТРЕЙДА
+-- КОРРЕКТНЫЙ ОБРАБОТЧИК ТРЕЙДА
 -- =============================================
 local function handleTradeGui(tradeGui)
-    task.wait(1.5) -- даем предметам прогрузиться в UI
-    
     local myItems, theirItems = smartGetItems(tradeGui)
     local myVal, myUnk = calcTotal(myItems)
     local theirVal, theirUnk = calcTotal(theirItems)
     
-    -- Обновляем отладку
     myItemsLabel.Text = #myItems > 0 and table.concat(myItems, "\n") or "пусто"
     theirItemsLabel.Text = #theirItems > 0 and table.concat(theirItems, "\n") or "пусто"
     myTotalLabel.Text = "Итого: " .. myVal
     theirTotalLabel.Text = "Итого: " .. theirVal
 
-    -- Ищем кнопки Accept / Decline
     local acceptBtn, declineBtn
     for _, desc in ipairs(tradeGui:GetDescendants()) do
         if desc:IsA("TextButton") then
@@ -603,14 +521,14 @@ local function handleTradeGui(tradeGui)
     end
 
     if myVal == 0 and theirVal == 0 then
-        resultLabel.Text = "Трейд пуст или предметы не распознаны"
+        resultLabel.Text = "Трейд пуст или предметы не найдены"
         return
     end
 
     local isProfitable = false
     if myVal > 0 then
         local diff = theirVal - myVal
-        local pct = (diff / myVal) * 100
+        local pct = math.floor((diff / myVal) * 100)
         isProfitable = pct >= MIN_PROFIT_PERCENT
         
         if isProfitable then
@@ -620,27 +538,23 @@ local function handleTradeGui(tradeGui)
             resultLabel.Text = string.format("❌ ОТКЛОНИТЬ (%d%%)", pct)
             resultLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
         end
+    else
+        isProfitable = theirVal > 0 -- Если мы ничего не отдаем, а нам дают — это выгодно
+        resultLabel.Text = "✅ ПРИНЯТЬ (Бесплатный гифт)"
+        resultLabel.TextColor3 = Color3.fromRGB(80, 220, 80)
     end
 
     if traderEnabled then
         if AUTO_DECLINE_UNKNOWN and (#myUnk > 0 or #theirUnk > 0) then
-            print("[Trader] Есть неизвестные предметы, отклоняю трейд.")
             clickButton(declineBtn)
             return
         end
-
-        if isProfitable then
-            print("[Trader] Выгодная сделка! Принимаю...")
-            clickButton(acceptBtn)
-        else
-            print("[Trader] Невыгодно, отклоняю.")
-            clickButton(declineBtn)
-        end
+        if isProfitable then clickButton(acceptBtn) else clickButton(declineBtn) end
     end
 end
 
 -- =============================================
--- МОНИТОРИНГ GUI
+-- МОНИТОРИНГ И КНОПКИ
 -- =============================================
 local function isTradeGui(gui)
     local name = gui.Name:lower()
@@ -650,24 +564,19 @@ local function isTradeGui(gui)
 end
 
 PlayerGui.ChildAdded:Connect(function(child)
-    if isTradeGui(child) then
-        handleTradeGui(child)
-    end
+    if isTradeGui(child) then task.wait(0.5) handleTradeGui(child) end
 end)
 
--- Таймер авто-проверки на случай сбоев Roblox событий
 task.spawn(function()
     while true do
-        task.wait(1.5)
+        task.wait(1)
         for _, gui in ipairs(PlayerGui:GetChildren()) do
-            if isTradeGui(gui) then
-                handleTradeGui(gui)
-            end
+            if isTradeGui(gui) then handleTradeGui(gui) end
         end
     end
 end)
 
--- Кнопки UI управления
+-- Назначение функций на кнопки
 minusBtn.MouseButton1Click:Connect(function()
     if MIN_PROFIT_PERCENT > 1 then
         MIN_PROFIT_PERCENT = MIN_PROFIT_PERCENT - 1
@@ -678,6 +587,11 @@ end)
 plusBtn.MouseButton1Click:Connect(function()
     MIN_PROFIT_PERCENT = MIN_PROFIT_PERCENT + 1
     profitLabel.Text = "Мин. прибыль: " .. MIN_PROFIT_PERCENT .. "%"
+end)
+
+debugToggleBtn.MouseButton1Click:Connect(function()
+    debugFrame.Visible = not debugFrame.Visible
+    debugToggleBtn.Text = debugFrame.Visible and "🔍 Скрыть отладку" or "🔍 Показать отладку"
 end)
 
 toggleBtn.MouseButton1Click:Connect(function()
@@ -694,3 +608,5 @@ toggleBtn.MouseButton1Click:Connect(function()
         statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
     end
 end)
+
+print("[Trader] Успешно загружен! Меню должно отображаться.")
