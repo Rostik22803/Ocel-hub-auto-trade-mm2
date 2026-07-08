@@ -1,70 +1,70 @@
--- =============================================
--- MM2 Auto Trader v5.3 (MOBILE POSITION & DRAG FIX)
--- =============================================
+-- ====================================================================
+-- MM2 Auto Trader v6.7 (STRICT DECLINE FIX) + GITHUB DATABASE
+-- ====================================================================
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService  = game:GetService("UserInputService")
+local HttpService       = game:GetService("HttpService")
 local LocalPlayer       = Players.LocalPlayer
 local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
 
--- Полная очистка старых версий
+-- Сетевые события
+local TradeModules = ReplicatedStorage:WaitForChild("Trade", 5)
+local AcceptRemote = TradeModules and TradeModules:WaitForChild("AcceptTrade", 2)
+local DeclineRemote = TradeModules and TradeModules:WaitForChild("DeclineTrade", 2)
+
+-- Очистка старых UI
 for _, gui in ipairs(PlayerGui:GetChildren()) do
-    if gui.Name:find("MM2TraderUI") or gui.Name == "MM2TraderDebug" then
+    if gui.Name:find("MM2TraderUI") or gui.Name == "MM2TraderDebug" or gui.Name == "MM2TraderUI_v67" then
         gui:Destroy()
     end
 end
 
--- =============================================
--- НАСТРОЙКИ И ОБНОВЛЕННЫЕ ЦЕНЫ (Добавлены Sharky, Space, Splash)
--- =============================================
 local MIN_PROFIT_PERCENT  = 5       
 local traderEnabled       = false   
+local lastActionTime      = 0      
 
-local ItemValues = {
-    ["Nik's Scythe"]            = 125000000, ["Blue Elderwood Blade"]    = 45000,
-    ["Red Icecrusher"]          = 45000,     ["Red Icepiercer"]          = 45000,
-    ["Blue Swirly Axe"]         = 40000,     ["Blue Synthwave"]          = 40000,
-    ["Gingerscope"]             = 17800,     ["Traveler's Axe"]          = 8400,
-    ["Celestial"]               = 2000,      ["Vampire's Axe"]           = 1200,
-    ["Harvester"]               = 248,       ["Icepiercer"]              = 163,
-    ["Batwing"]                 = 46,        ["Elderwood Scythe"]        = 44,
-    ["Hallowscythe"]            = 34,        ["Icebreaker"]              = 69,
-    ["Icewing"]                 = 15,        ["Logchopper"]              = 18,
-    ["Swirly Axe"]              = 42,
-    ["Chroma Traveler's Gun"]   = 220000,    ["Chroma Evergun"]          = 75000,
-    ["Chroma Evergreen"]        = 59300,     ["Chroma Bauble"]           = 35000,
-    ["Traveler's Gun"]          = 4900,      ["Evergun"]                 = 3500,
-    ["Evergreen"]               = 2500,      ["Darkshot"]                = 1600,
-    ["Darksword"]               = 1500,      ["Corrupt"]                 = 475,
-    ["Watergun"]                = 248,       ["Candy"]                   = 83,
-    ["Heartblade"]              = 69,        ["Bat"]                     = 61,
-    ["Luger"]                   = 46,        ["Red Luger"]               = 44,
-    ["Sugar"]                   = 39,        ["Shark"]                   = 22,
-    ["Laser"]                   = 24,        ["Slasher"]                 = 19,
-    ["Pixel"]                   = 19,        ["Iceflake"]                = 19,
-    ["Ice Dragon"]              = 7,         ["Seer"]                    = 3,
-    ["Pearl"]                   = 98,        ["Pearlshine"]              = 103,
-    ["Yellow Seer"]             = 2,         ["Orange Seer"]             = 2,
-    ["Red Seer"]                = 3,         ["Cyan Seer"]               = 3,
-    ["Blue Seer"]               = 3,         ["Purple Seer"]             = 3,
-    ["Predator"]                = 4,         ["Shaded"]                  = 2,
-    ["Vampire (Gun)"]           = 48,        ["JD"]                      = 35,
-    ["Cotton Candy"]            = 40,        ["Starfish"]                = 2,
-    ["Splash"]                  = 3,         ["Space"]                   = 2,
-    ["Sharky"]                  = 5,         -- Добавлено по логам
-}
+-- Динамическая таблица цен
+local ItemValues = {}
+local GITHUB_RAW_URL = "https://raw.githubusercontent.com/Rostik22803/Ocel-hub-auto-trade-mm2/refs/heads/main/mm2_values.json"
 
--- =============================================
--- ИНТЕРФЕЙС GUI
--- =============================================
+print("[Ocel Hub]: Подключение к удаленной базе данных GitHub...")
+
+local success, response = pcall(function()
+    return game:HttpGet(GITHUB_RAW_URL)
+end)
+
+if success and response then
+    local decodeSuccess, decodedData = pcall(function()
+        return HttpService:JSONDecode(response)
+    end)
+    if decodeSuccess and type(decodedData) == "table" then
+        ItemValues = decodedData
+        print("[Ocel Hub]: База цен успешно подтянута с твоего GitHub!")
+    else
+        warn("[Ocel Hub]: Кривой JSON файл на GitHub! Проверь синтаксис.")
+    end
+else
+    warn("[Ocel Hub]: Не удалось загрузить базу данных из сети. Включен пустой дефолт.")
+end
+
+-- Настройка метатаблицы для авто-обнуления комонок/анкомонок/скрытых предметов
+setmetatable(ItemValues, {
+    __index = function(table, key)
+        local itemName = tostring(key)
+        print(string.format("[Ocel Hub] Комонка/Анкомонка/Предмет: \"%s\" -> Цена: 0", itemName))
+        return 0
+    end
+})
+
+-- Интерфейс управления
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2TraderUI_v53"
+screenGui.Name = "MM2TraderUI_v67"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999999
 screenGui.Parent = PlayerGui
 
--- Функция для добавления перетаскивания (Drag) на мобилках
 local function makeDraggable(frame, handle)
     local dragging, dragInput, dragStart, startPos
     handle.InputBegan:Connect(function(input)
@@ -106,10 +106,10 @@ titleBar.Size = UDim2.new(1, 0, 0, 36)
 titleBar.BackgroundColor3 = Color3.fromRGB(130, 0, 210)
 titleBar.Parent = mainFrame
 local tc = Instance.new("UICorner") tc.CornerRadius = UDim.new(0, 10) tc.Parent = titleBar
-makeDraggable(mainFrame, titleBar) -- Главное меню теперь таскается за шапку
+makeDraggable(mainFrame, titleBar)
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "MM2 Trader v5.3"
+titleLabel.Text = "MM2 Trader v6.7"
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
@@ -174,10 +174,10 @@ local dbc = Instance.new("UICorner") dbc.CornerRadius = UDim.new(0,6) dbc.Parent
 -- Панель анализа
 local debugFrame = Instance.new("Frame")
 debugFrame.Size = UDim2.new(0, 340, 0, 220)
-debugFrame.Position = UDim2.new(0.05, 0, 0.50, 0) -- По дефолту пониже основного меню
+debugFrame.Position = UDim2.new(0.05, 0, 0.50, 0)
 debugFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
 debugFrame.Active = true
-debugFrame.Visible = true -- Сразу показываем, чтобы юзер видел, двигается ли оно
+debugFrame.Visible = true
 debugFrame.Parent = screenGui
 local dbCorner = Instance.new("UICorner") dbCorner.CornerRadius = UDim.new(0, 10) dbCorner.Parent = debugFrame
 local dbStroke = Instance.new("UIStroke") dbStroke.Color = Color3.fromRGB(130, 0, 210) dbStroke.Thickness = 2 dbStroke.Parent = debugFrame
@@ -186,10 +186,10 @@ local dbTitle = Instance.new("Frame")
 dbTitle.Size = UDim2.new(1, 0, 0, 24)
 dbTitle.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
 dbTitle.Parent = debugFrame
-makeDraggable(debugFrame, dbTitle) -- ПАНЕЛЬ АНАЛИЗА ТЕПЕРЬ СВОБОДНО ПЕРЕТАСКИВАЕТСЯ ЗА СВОЮ ШАПКУ
+makeDraggable(debugFrame, dbTitle)
 
 local dbTitleTxt = Instance.new("TextLabel")
-dbTitleTxt.Text = " Нажмите сюда пальцем для перемещения"
+dbTitleTxt.Text = " Зажмите здесь для перемещения панели"
 dbTitleTxt.Size = UDim2.new(1, 0, 1, 0)
 dbTitleTxt.BackgroundTransparency = 1
 dbTitleTxt.TextColor3 = Color3.fromRGB(200, 255, 200)
@@ -263,87 +263,153 @@ resultLabel.TextSize = 11
 resultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
 resultLabel.Parent = debugFrame
 
--- =============================================
--- ЧИСТКА СТРОК С КОРРЕКЦИЕЙ
--- =============================================
+-- Вспомогательные функции
+local function isGloballyVisible(obj)
+    local current = obj
+    while current do
+        if current:IsA("ScreenGui") then return current.Enabled end
+        if current:IsA("GuiObject") then
+            if not current.Visible then return false end
+        end
+        current = current.Parent
+    end
+    return true
+end
+
 local function cleanItemName(text)
     if not text or text == "" or tonumber(text) or text == "Label" then return nil end
     local clean = text:match("^%s*(.-)%s*$")
     
-    if ItemValues[clean] then return clean end
+    local upperClean = clean:upper()
+    if upperClean:find("ACCEPTED") or upperClean:find("OFFER") or upperClean:find("WAIT") or upperClean:find("ПОДОЖД") or upperClean:find("DECLINE") then
+        return nil
+    end
+    
+    if clean:find("%(") or clean:find("%)") then
+        return nil
+    end
+    
+    if rawget(ItemValues, clean) ~= nil then return clean end
+    
     for name, _ in pairs(ItemValues) do
         if name:lower() == clean:lower() or clean:lower():find(name:lower(), 1, true) then
             return name
         end
     end
-    return nil
+    
+    return clean
 end
 
--- =============================================
--- НАДЁЖНЫЙ СКАНЕР ДЛЯ МОБИЛОК
--- =============================================
+local function isDescendantOf(obj, potentialAncestor)
+    if not potentialAncestor then return false end
+    local current = obj.Parent
+    while current do
+        if current == potentialAncestor then return true end
+        current = current.Parent
+    end
+    return false
+end
+
+-- РЕМОУТЫ
+local function triggerAcceptTrade()
+    pcall(function()
+        if AcceptRemote and AcceptRemote:IsA("RemoteEvent") then AcceptRemote:FireServer() end
+    end)
+end
+
+local function triggerDeclineTrade()
+    pcall(function()
+        if DeclineRemote and DeclineRemote:IsA("RemoteEvent") then DeclineRemote:FireServer() end
+    end)
+end
+
+-- Основной цикл парсинга v6.7
 local function processTradeLogic()
-    local tradeFrame = nil
-    
-    -- Ищем окно по надписи "YOUR OFFER"
+    local myContainer = nil
+    local theirContainer = nil
+    local gameIsWaiting = false   
+    local partnerAccepted = false 
+
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "MM2TraderUI_v53" then
+        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "MM2TraderUI_v67" then
             for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("TextLabel") and desc.Text:upper() == "YOUR OFFER" then
-                    tradeFrame = desc.Parent
-                    break
+                if desc:IsA("TextLabel") and isGloballyVisible(desc) then
+                    local txt = desc.Text:upper()
+                    if txt == "YOUR OFFER" then
+                        myContainer = desc.Parent
+                    elseif txt:find("THEIR OFFER") or txt:find("PARTNER") or txt:find("OFFER") and desc.Position.X.Scale > 0.4 then
+                        theirContainer = desc.Parent
+                    end
                 end
             end
         end
-        if tradeFrame then break end
     end
 
-    if not tradeFrame then
+    if not myContainer or not theirContainer or not isGloballyVisible(myContainer) then
+        myItemsLabel.Text = "Пусто"
+        theirItemsLabel.Text = "Пусто"
+        myTotalLabel.Text = "Ты даешь: 0"
+        theirTotalLabel.Text = "Тебе дают: 0"
         resultLabel.Text = "⏳ Окно обмена MM2 не обнаружено"
+        resultLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
         return
     end
 
     local myItems = {}
     local theirItems = {}
-    local acceptBtn, declineBtn = nil, nil
+    local mainTradeWindow = myContainer.Parent
 
-    -- ВМЕСТО КРИВОГО ЦЕНТРА: Берем Х-координату самого фрейма и добавляем 42% от его ширины.
-    -- Все элементы, чья позиция X меньше этой черты — ТВОИ. Всё, что правее — ОППОНЕНТА.
-    local splitLineX = tradeFrame.AbsolutePosition.X + (tradeFrame.AbsoluteSize.X * 0.42)
-
-    for _, obj in ipairs(tradeFrame:GetDescendants()) do
-        if obj:IsA("TextLabel") and obj.Text ~= "" then
-            local matched = cleanItemName(obj.Text)
-            if matched and not obj.Text:upper():find("OFFER") then
-                -- Сравниваем позицию текста с нашей разделительной линией
-                if obj.AbsolutePosition.X < splitLineX then
-                    table.insert(myItems, matched)
-                else
-                    table.insert(theirItems, matched)
+    -- Сканирование элементов
+    for _, obj in ipairs(mainTradeWindow:GetDescendants()) do
+        if obj:IsA("TextLabel") and isGloballyVisible(obj) then
+            local txt = obj.Text:upper()
+            
+            if txt:find("WAIT") or txt:find("HOLD") or txt:find("ПОДОЖД") or txt:find("ПРИНЯТ") or txt:find("COUNT") then
+                gameIsWaiting = true
+            end
+            
+            -- ЖЕСТКИЙ ПЕРЕХВАТ ПЛАШКИ ПРИНЯТИЯ ТРЕЙДА
+            if txt:find("HAS ACCEPTED") or txt:find("OTHER PLAYER HAS ACCEPTED") then
+                partnerAccepted = true
+            end
+            
+            if obj.Text ~= "" and not txt:find("OFFER") and not txt:find("WAIT") and not txt:find("ПОДОЖД") then
+                local matched = cleanItemName(obj.Text)
+                if matched then
+                    if isDescendantOf(obj, myContainer) then
+                        table.insert(myItems, matched)
+                    elseif isDescendantOf(obj, theirContainer) then
+                        table.insert(theirItems, matched)
+                    end
                 end
             end
         end
-
-        -- Сбор кнопок
-        if obj:IsA("TextButton") then
+        
+        -- Чтение статуса кнопок
+        if obj:IsA("TextButton") and isGloballyVisible(obj) then
+            local txt = obj.Text:upper()
             local name = obj.Name:lower()
-            local text = obj.Text:lower()
-            if name:find("accept") or text:find("accept") then acceptBtn = obj end
-            if name:find("decline") or text:find("decline") then declineBtn = obj end
+            if txt:find("WAIT") or txt:find("ПОДОЖД") then
+                gameIsWaiting = true
+            end
+            if name:find("partner") or name:find("accept") then
+                if txt:find("READY") or txt:find("ACCEPTED") or (obj.BackgroundColor3.G > 0.4 and obj.BackgroundColor3.R < 0.3) then
+                    partnerAccepted = true
+                end
+            end
         end
     end
 
-    -- Вывод в панели
     local myTotal, theirTotal = 0, 0
     local myLines, theirLines = {}, {}
 
     for _, n in ipairs(myItems) do
-        local p = ItemValues[n] or 0
+        local p = ItemValues[n] 
         myTotal = myTotal + p
         table.insert(myLines, n .. " (" .. p .. ")")
     end
     for _, n in ipairs(theirItems) do
-        local p = ItemValues[n] or 0
+        local p = ItemValues[n] 
         theirTotal = theirTotal + p
         table.insert(theirLines, n .. " (" .. p .. ")")
     end
@@ -359,7 +425,6 @@ local function processTradeLogic()
         return
     end
 
-    -- Логика подсчета выгоды
     local profitValid = false
     local percent = 0
     if myTotal > 0 then
@@ -370,46 +435,50 @@ local function processTradeLogic()
         profitValid = theirTotal > 0
     end
 
-    -- Автокликер
-    if traderEnabled then
+    -- ЛОГИКА ДЕЙСТВИЙ (ОБНОВЛЕННАЯ)
+    if traderEnabled and (os.clock() - lastActionTime > 1.2) then
         if profitValid then
-            resultLabel.Text = "✅ Жму ACCEPT (Прибыль: "..percent.."%)"
-            resultLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
-            if acceptBtn then
-                pcall(function()
-                    acceptBtn.MouseButton1Click:Fire()
-                    local VIM = game:GetService("VirtualInputManager")
-                    local pos = acceptBtn.AbsolutePosition + acceptBtn.AbsoluteSize / 2
-                    VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
-                    task.wait(0.02)
-                    VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
-                end)
+            if not gameIsWaiting then
+                lastActionTime = os.clock()
+                resultLabel.Text = "✅ Всё ок! Принимаю трейд..."
+                resultLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
+                triggerAcceptTrade()
+            else
+                resultLabel.Text = "🛑 Блокировка: игра просит подождать..."
+                resultLabel.TextColor3 = Color3.fromRGB(255, 100, 50)
             end
         else
-            resultLabel.Text = "❌ Отклоняю (Убыток: "..percent.."%)"
-            resultLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-            if declineBtn then pcall(function() declineBtn.MouseButton1Click:Fire() end) end
+            -- Если челик принял плохой трейд (partnerAccepted теперь гарантированно поймает плашку)
+            if partnerAccepted then
+                lastActionTime = os.clock()
+                resultLabel.Text = "❌ Челик принял плохой трейд. Отклоняю!"
+                resultLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+                triggerDeclineTrade()
+            else
+                resultLabel.Text = "⏳ Трейд невыгоден, но жду, вдруг докинет вещи..."
+                resultLabel.TextColor3 = Color3.fromRGB(200, 150, 100)
+            end
         end
     else
-        if profitValid then
-            resultLabel.Text = "Рекомендация: ЖМИ ACCEPT (+"..percent.."%)"
-            resultLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        else
-            resultLabel.Text = "Рекомендация: ОТКЛОНЯЙ ("..percent.."%)"
-            resultLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        if not traderEnabled then
+            if profitValid then
+                resultLabel.Text = "Рекомендация: ПРИНИМАЙ (+"..percent.."%)"
+                resultLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            else
+                resultLabel.Text = "Рекомендация: ОТКЛОНЯЙ ("..percent.."%)"
+                resultLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            end
         end
     end
 end
 
--- Воркер-раннер
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.2)
         pcall(processTradeLogic)
     end
 end)
 
--- Ивенты кнопок управления
 minusBtn.MouseButton1Click:Connect(function()
     if MIN_PROFIT_PERCENT > 0 then
         MIN_PROFIT_PERCENT = MIN_PROFIT_PERCENT - 1
